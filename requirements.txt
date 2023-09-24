@@ -1,0 +1,4 @@
+webapp2==2.2.1
+google-cloud-appengine==3.2.2
+google-maps-services
+google-cloud-bigquery
