@@ -1,0 +1,15 @@
+runtime: python37
+
+handlers:
+- url: /
+  script: main.py
+
+services:
+- maps
+- bigquery
+
+scaling:
+  automatic:
+    max_instances: 2
+    cpu_usage: 0.8
+    target_cpu_usage: 0.5
