@@ -1,0 +1,77 @@
+name: Build Android APK
+
+# Trigger the build when you push to these branches
+on:
+  push:
+    branches: [ development, main ]
+  # Also allow manual triggering from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Run on Ubuntu (GitHub's free Linux runner)
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Download your code
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Python 3.9
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    # Step 3: Install system dependencies needed for building
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          git zip unzip openjdk-17-jdk wget \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev libtinfo5 \
+          cmake libffi-dev libssl-dev
+
+    # Step 4: Install Python build tools
+    - name: Install buildozer and cython
+      run: |
+        pip install --upgrade pip
+        pip install buildozer cython==0.29.33
+
+    # Step 5: Cache buildozer downloads (speeds up future builds)
+    - name: Cache Buildozer global directory
+      uses: actions/cache@v3
+      with:
+        path: .buildozer_global
+        key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+
+    - name: Cache Buildozer directory
+      uses: actions/cache@v3
+      with:
+        path: .buildozer
+        key: buildozer-${{ hashFiles('buildozer.spec') }}
+
+    # Step 6: Build the APK!
+    - name: Build with Buildozer
+      run: |
+        # Accept Android SDK licenses automatically
+        yes | buildozer android debug
+      env:
+        # Set buildozer cache directory
+        BUILDOZER_CACHE: .buildozer_global
+
+    # Step 7: Upload the APK so you can download it
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: veteran-grave-marker-apk
+        path: bin/*.apk
+        retention-days: 30
+
+    # Step 8: Show build summary
+    - name: Build Summary
+      run: |
+        echo "✅ Build completed successfully!"
+        echo "📦 APK location: bin/"
+        ls -lh bin/*.apk

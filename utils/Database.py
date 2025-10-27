@@ -16,13 +16,14 @@ conn.execute("""CREATE TABLE IF NOT EXISTS Grave_Locations (
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    shapefile_id INTEGER NOT NULL,
+    shapefile_id INTEGER,
     accuracy REAL,
-    veteran_name STRING NOT NULL,
-    branch_of_service STRING NOT NULL,
-    bith_year SMALLINT,
-    death_year SMALLINT NOT NULL,
-    FOREIGN KEY (shapefile_id) REFERENCES Shapefiles(id)
+    veteran_name STRING,
+    branch_of_service STRING,
+    birth_year SMALLINT,
+    death_year SMALLINT,
+    cemetary_name STRING,
+    FOREIGN KEY (shapefile_id) REFERENCES Cemetaries(id)
 )""")
 
 # Function to add a new shapefile

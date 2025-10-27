@@ -1,17 +1,18 @@
 from kivy.garden.geolocation import Geolocation
 
 class MapHandler:
-    def __init__(self, google_map):
-        self.google_map = google_map
+    def __init__(self, map_view):
+        self.map_view = map_view
         self.geolocation = Geolocation()
 
     def request_location_permission(self):
-        self.geolocation.ask_permission()
+        self.geolocation.configure(on_location=self.on_location)
+        self.geolocation.start()
+
+    def on_location(self, **kwargs):
+        """Called when GPS location is updated"""
+        self.map_view.center_on(kwargs['lat'], kwargs['lon'])
 
     def center_map_on_user_location(self):
-        latitude = self.geolocation.latitude
-        longitude = self.geolocation.longitude
-        self.google_map.center = [latitude, longitude]
-
-    def set_satellite_view(self):
-        self.google_map.maptype = GoogleMap.MAPTYPE_SATELLITE
+        if self.geolocation.lat and self.geolocation.lon:
+            self.map_view.center_on(self.geolocation.lat, self.geolocation.lon)

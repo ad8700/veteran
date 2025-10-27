@@ -43,35 +43,31 @@ class VeteranInfoPopup(Popup):
         self.add_widget(layout)
 
     def submit_info(self, instance):
+        """Update the database with veteran information"""
+        import sqlite3
+
         # Validate user input
         veteran_name = self.veteran_name_input.text
         branch_of_service = self.branch_input.text
         birth_year = self.birth_year_input.text or None
         death_year = self.death_year_input.text
 
-    # Update the database
-    def submit_info(self, instance):
-    # ... Validate user input ...
+        # Basic validation
+        if not veteran_name or not death_year:
+            print("Error: Veteran name and death year are required")
+            return
 
-    # Update the database
-    conn.execute("""
-        UPDATE Grave_Locations
-        SET veteran_name=?, branch_of_service=?, birth_year=?, death_year=?
-        WHERE id=?
-    """, (veteran_name, branch_of_service, birth_year, death_year, self.grave_id))
-    conn.commit()
+        # Update the database
+        conn = sqlite3.connect("VeteranGraveMarker.db")
+        cursor = conn.cursor()
 
-    # Close the popup
-    self.dismiss()
-        
-# When a new point is added, display the popup
-def add_point(latitude, longitude, shapefile_id, accuracy=None):
-    # ... Add logic to insert new point into Grave_Locations table
-    # ...
+        cursor.execute("""
+            UPDATE Grave_Locations
+            SET veteran_name=?, branch_of_service=?, birth_year=?, death_year=?
+            WHERE id=?
+        """, (veteran_name, branch_of_service, birth_year, death_year, self.grave_id))
+        conn.commit()
+        conn.close()
 
-    # Get the ID of the newly created record
-    grave_id = conn.lastrowid
-
-    # Show the popup for adding veteran information
-    popup = VeteranInfoPopup(grave_id)
-    popup.open()
+        # Close the popup
+        self.dismiss()
