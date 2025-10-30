@@ -14,12 +14,11 @@ from utils.veteran_info import VeteranInfoPopup
 class VeteranGraveMarker(App):
     def get_gps_location(self):
         """Get current GPS location from the device"""
-        # Access the geolocation from map_handler
-        if hasattr(self, 'map_handler') and self.map_handler.geolocation:
-            geo = self.map_handler.geolocation
+        # Access the location from map_handler
+        if hasattr(self, 'map_handler'):
             # Check if we have valid GPS coordinates
-            if geo.lat is not None and geo.lon is not None:
-                return geo.lat, geo.lon
+            if self.map_handler.lat is not None and self.map_handler.lon is not None:
+                return self.map_handler.lat, self.map_handler.lon
             else:
                 print("GPS location not yet available. Waiting for signal...")
                 return None, None
