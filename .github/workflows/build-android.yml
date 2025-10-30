@@ -15,11 +15,11 @@ jobs:
     steps:
     # Step 1: Download your code
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     # Step 2: Set up Python 3.9
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
@@ -41,13 +41,13 @@ jobs:
 
     # Step 5: Cache buildozer downloads (speeds up future builds)
     - name: Cache Buildozer global directory
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .buildozer_global
         key: buildozer-global-${{ hashFiles('buildozer.spec') }}
 
     - name: Cache Buildozer directory
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: .buildozer
         key: buildozer-${{ hashFiles('buildozer.spec') }}
@@ -63,7 +63,7 @@ jobs:
 
     # Step 7: Upload the APK so you can download it
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: veteran-grave-marker-apk
         path: bin/*.apk
