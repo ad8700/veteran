@@ -60,6 +60,8 @@ jobs:
       env:
         # Set buildozer cache directory
         BUILDOZER_CACHE: .buildozer_global
+        # Use Java 17 for Gradle builds (required for modern Android builds)
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
 
     # Step 7: Upload the APK so you can download it
     - name: Upload APK artifact
