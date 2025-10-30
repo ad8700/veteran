@@ -5,9 +5,10 @@ from kivy.uix.dropdown import DropDown
 from kivy.uix.button import Button
 
 class VeteranInfoPopup(Popup):
-    def __init__(self, grave_id, **kwargs):
+    def __init__(self, grave_id, db_path, **kwargs):
         super(VeteranInfoPopup, self).__init__(**kwargs)
         self.grave_id = grave_id
+        self.db_path = db_path
 
         # Initialize layout
         layout = BoxLayout(orientation='vertical')
@@ -58,7 +59,7 @@ class VeteranInfoPopup(Popup):
             return
 
         # Update the database
-        conn = sqlite3.connect("VeteranGraveMarker.db")
+        conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         cursor.execute("""

@@ -29,8 +29,8 @@ garden_requirements = mapview
 # IMPORTANT: These allow GPS and internet access
 android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 
-# (int) Target Android API - Android 10 (API 29) is widely compatible
-android.api = 29
+# (int) Target Android API - Android 13 (API 33) for modern privacy features
+android.api = 33
 
 # (int) Minimum API your app supports - Android 5.0 (API 21)
 android.minapi = 21
@@ -54,7 +54,7 @@ fullscreen = 0
 android.allow_backup = True
 
 # (int) Android SDK API to use - same as android.api for compatibility
-android.sdk = 29
+android.sdk = 33
 
 # (bool) If True, the app will use OpenSSL (needed for HTTPS connections)
 # Required for MapView to load map tiles
