@@ -50,9 +50,6 @@ orientation = portrait
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 0
 
-# (list) Android features the app requires
-android.features = android.hardware.location.gps
-
 # (bool) Enable Android auto backup feature
 android.allow_backup = True
 
