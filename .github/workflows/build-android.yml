@@ -9,8 +9,8 @@ on:
 
 jobs:
   build:
-    # Run on Ubuntu (GitHub's free Linux runner)
-    runs-on: ubuntu-latest
+    # Run on Ubuntu 22.04 (more compatible with buildozer than 24.04)
+    runs-on: ubuntu-22.04
 
     steps:
     # Step 1: Download your code
@@ -31,7 +31,7 @@ jobs:
           git zip unzip openjdk-17-jdk wget \
           autoconf libtool pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev \
-          cmake libffi-dev libssl-dev
+          cmake libffi-dev libssl-dev libltdl-dev
 
     # Step 4: Install Python build tools
     - name: Install buildozer and cython
