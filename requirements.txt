@@ -6,6 +6,3 @@ mapview>=1.0.0
 
 # GPS/Geolocation support
 plyer>=2.1.0
-
-# Geocoding (address to coordinates conversion)
-geopy>=2.3.0

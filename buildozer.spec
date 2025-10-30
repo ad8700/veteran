@@ -20,7 +20,7 @@ version = 0.1
 
 # (list) Application requirements - Python packages needed
 # Separated by commas
-requirements = python3,kivy,plyer,geopy
+requirements = python3,kivy,plyer
 
 # (list) Garden requirements - Kivy Garden packages
 garden_requirements = mapview
