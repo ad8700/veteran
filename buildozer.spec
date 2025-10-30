@@ -36,7 +36,7 @@ android.api = 29
 android.minapi = 21
 
 # (int) Android NDK version (Native Development Kit for C/C++ compilation)
-android.ndk = 23b
+android.ndk = 25b
 
 # (bool) Copy library instead of making symbolic link (required on Windows)
 android.copy_libs = 1
