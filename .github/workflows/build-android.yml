@@ -39,6 +39,11 @@ jobs:
         pip install --upgrade pip
         pip install buildozer cython==0.29.33
 
+    # Step 4.5: Install Android SDK components
+    - name: Install Android SDK API 33
+      run: |
+        echo "y" | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0"
+
     # Step 5: Cache buildozer downloads (speeds up future builds)
     - name: Cache Buildozer global directory
       uses: actions/cache@v4
