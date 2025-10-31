@@ -3,6 +3,7 @@ from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
+from kivy.uix.popup import Popup
 from kivy_garden.mapview import MapView, MapMarker
 import sqlite3
 import os
@@ -75,21 +76,28 @@ class VeteranGraveMarker(App):
         conn.commit()
         conn.close()
 
+    def update_gps_status(self, status_text):
+        """Update the GPS status label"""
+        if hasattr(self, 'gps_status_label'):
+            self.gps_status_label.text = status_text
+
     def build(self):
         # Initialize the database
         self.init_database()
 
-        layout = GridLayout(cols=1)
-        label = Label(text="Welcome")
-        layout.add_widget(label)
+        layout = GridLayout(cols=1, rows=4)
+
+        # GPS Status Label
+        self.gps_status_label = Label(text="GPS: Acquiring signal...", size_hint_y=0.1)
+        layout.add_widget(self.gps_status_label)
 
         # Create MapView and MapHandler
         map_view = MapView(zoom=15, lat=39.8283, lon=-98.5795)  # Default to center of USA
-        self.map_handler = MapHandler(map_view)  # Save as instance variable
+        self.map_handler = MapHandler(map_view, self)  # Pass app instance for status updates
         self.map_handler.request_location_permission()  # Start GPS
         layout.add_widget(map_view)
 
-        drop_pin_button = Button(text="Drop Pin", on_press=self.drop_pin)
+        drop_pin_button = Button(text="Drop Pin", on_press=self.drop_pin, size_hint_y=0.15)
         layout.add_widget(drop_pin_button)
 
         return layout
@@ -102,6 +110,13 @@ class VeteranGraveMarker(App):
         # Check if GPS location is available
         if latitude is None or longitude is None:
             print("Cannot drop pin: GPS location not available yet")
+            # Show popup to user
+            popup = Popup(
+                title='GPS Not Ready',
+                content=Label(text='Waiting for GPS signal...\n\nMake sure you are outdoors with clear sky view.\nGPS may take 30-60 seconds to acquire signal.'),
+                size_hint=(0.8, 0.4)
+            )
+            popup.open()
             return
 
         # Add the point to database and get its ID

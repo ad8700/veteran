@@ -2,8 +2,9 @@ from plyer import gps
 from kivy.utils import platform
 
 class MapHandler:
-    def __init__(self, map_view):
+    def __init__(self, map_view, app=None):
         self.map_view = map_view
+        self.app = app  # Reference to main app for status updates
         self.lat = None
         self.lon = None
 
@@ -26,13 +27,26 @@ class MapHandler:
     def on_status(self, stype, status):
         """Called when GPS status changes"""
         print(f"GPS status: {stype} = {status}")
+        if self.app:
+            if stype == 'provider-enabled':
+                if status:
+                    self.app.update_gps_status("GPS: Searching for satellites...")
+                else:
+                    self.app.update_gps_status("GPS: Disabled")
 
     def on_location(self, **kwargs):
         """Called when GPS location is updated"""
         self.lat = kwargs.get('lat')
         self.lon = kwargs.get('lon')
+        accuracy = kwargs.get('accuracy', 0)
+
+        print(f"GPS location updated: lat={self.lat}, lon={self.lon}, accuracy={accuracy}m")
+
         if self.lat and self.lon:
             self.map_view.center_on(self.lat, self.lon)
+            # Update status label
+            if self.app:
+                self.app.update_gps_status(f"GPS: Ready (±{accuracy:.0f}m)")
 
     def center_map_on_user_location(self):
         """Center map on current GPS location"""
