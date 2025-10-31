@@ -52,25 +52,25 @@ jobs:
         path: .buildozer
         key: buildozer-${{ hashFiles('buildozer.spec') }}
 
-    # Step 6: Accept Android SDK licenses (create license files)
-    - name: Accept Android SDK licenses
-      run: |
-        mkdir -p "$HOME/.android/sdk/licenses"
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$HOME/.android/sdk/licenses/android-sdk-license"
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$HOME/.android/sdk/licenses/android-sdk-license"
-
-    # Step 7: Build the APK!
+    # Step 6: Build the APK (buildozer will download SDK and we'll install API 30 after)
     - name: Build with Buildozer
       run: |
-        # Start build - it will create its own SDK
+        # Run buildozer - it will fail but download the SDK
         buildozer android debug || {
-          # If it fails, copy licenses to buildozer's SDK location
+          # Now that buildozer has downloaded SDK, accept licenses and install API 30
           if [ -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
-            mkdir -p "$HOME/.buildozer/android/platform/android-sdk/licenses"
-            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license"
-            echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license"
+            SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+
+            # Accept licenses
+            mkdir -p "$SDK_DIR/licenses"
+            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
+            echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$SDK_DIR/licenses/android-sdk-license"
+
+            # Install API 30 platform and build tools
+            yes | $SDK_DIR/tools/bin/sdkmanager --sdk_root="$SDK_DIR" "platforms;android-30" "build-tools;30.0.3" || true
           fi
-          # Retry build
+
+          # Retry build with API 30 now installed
           buildozer android debug
         }
       env:
