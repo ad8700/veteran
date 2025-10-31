@@ -20,10 +20,10 @@ version = 0.1
 
 # (list) Application requirements - Python packages needed
 # Separated by commas
-requirements = python3,kivy,plyer
+requirements = python3,kivy,plyer,mapview
 
-# (list) Garden requirements - Kivy Garden packages
-garden_requirements = mapview
+# (list) Garden requirements - Kivy Garden packages (deprecated, use requirements instead)
+# garden_requirements =
 
 # (list) Permissions needed by the app
 # IMPORTANT: These allow GPS and internet access
