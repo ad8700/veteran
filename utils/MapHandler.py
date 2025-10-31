@@ -1,5 +1,5 @@
-from plyer import gps
 from kivy.utils import platform
+from utils.AndroidGPS import AndroidGPS
 
 class MapHandler:
     def __init__(self, map_view, app=None):
@@ -7,32 +7,22 @@ class MapHandler:
         self.app = app  # Reference to main app for status updates
         self.lat = None
         self.lon = None
+        self.gps = None
 
     def request_location_permission(self):
         """Request GPS permission and start location updates"""
-        if platform == 'android':
-            # Request Android runtime permissions
-            from android.permissions import request_permissions, Permission
-            request_permissions([
-                Permission.ACCESS_FINE_LOCATION,
-                Permission.ACCESS_COARSE_LOCATION
-            ])
-
         try:
-            gps.configure(on_location=self.on_location, on_status=self.on_status)
-            gps.start(minTime=1000, minDistance=0)
-        except NotImplementedError:
-            print("GPS not available on this platform")
+            # Use our custom GPS implementation
+            self.gps = AndroidGPS(on_location_callback=self.on_location)
+            self.gps.start(min_time=1000, min_distance=0)
 
-    def on_status(self, stype, status):
-        """Called when GPS status changes"""
-        print(f"GPS status: {stype} = {status}")
-        if self.app:
-            if stype == 'provider-enabled':
-                if status:
-                    self.app.update_gps_status("GPS: Searching for satellites...")
-                else:
-                    self.app.update_gps_status("GPS: Disabled")
+            # Update status
+            if self.app:
+                self.app.update_gps_status("GPS: Searching for satellites...")
+        except Exception as e:
+            print(f"GPS not available: {e}")
+            if self.app:
+                self.app.update_gps_status("GPS: Error starting GPS")
 
     def on_location(self, **kwargs):
         """Called when GPS location is updated"""
