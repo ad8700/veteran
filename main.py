@@ -5,12 +5,23 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy_garden.mapview import MapView, MapMarker
+from kivy.utils import platform
 import sqlite3
 import os
+
+# Import Android logging for debugging
+if platform == 'android':
+    from jnius import autoclass
+    Log = autoclass('android.util.Log')
+    Log.i("VeteranGraveApp", "========== PYTHON MAIN.PY LOADED ==========")
+    print("Python main.py loaded")
 
 # Import our custom utilities
 from utils.MapHandler import MapHandler
 from utils.veteran_info import VeteranInfoPopup
+
+if platform == 'android':
+    Log.i("VeteranGraveApp", "Imports completed successfully")
 
 class VeteranGraveMarker(App):
     def get_db_path(self):
@@ -82,6 +93,10 @@ class VeteranGraveMarker(App):
             self.gps_status_label.text = status_text
 
     def build(self):
+        print("VeteranGraveMarker.build() called")
+        if platform == 'android':
+            Log.i("VeteranGraveApp", "VeteranGraveMarker.build() - initializing app")
+
         # Initialize the database
         self.init_database()
 
@@ -91,14 +106,32 @@ class VeteranGraveMarker(App):
         self.gps_status_label = Label(text="GPS: Acquiring signal...", size_hint_y=0.1)
         layout.add_widget(self.gps_status_label)
 
+        print("Creating MapView and MapHandler")
+        if platform == 'android':
+            Log.i("VeteranGraveApp", "Creating MapView and MapHandler")
+
         # Create MapView and MapHandler
         map_view = MapView(zoom=15, lat=39.8283, lon=-98.5795)  # Default to center of USA
         self.map_handler = MapHandler(map_view, self)  # Pass app instance for status updates
+
+        print("Requesting location permission")
+        if platform == 'android':
+            Log.i("VeteranGraveApp", "Calling map_handler.request_location_permission()")
+
         self.map_handler.request_location_permission()  # Start GPS
+
+        print("GPS initialization requested, adding widgets")
+        if platform == 'android':
+            Log.i("VeteranGraveApp", "GPS initialization requested, building UI")
+
         layout.add_widget(map_view)
 
         drop_pin_button = Button(text="Drop Pin", on_press=self.drop_pin, size_hint_y=0.15)
         layout.add_widget(drop_pin_button)
+
+        print("Build complete")
+        if platform == 'android':
+            Log.i("VeteranGraveApp", "build() complete, returning layout")
 
         return layout
 

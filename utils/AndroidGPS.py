@@ -13,6 +13,7 @@ if platform == 'android':
     LocationManager = autoclass('android.location.LocationManager')
     Context = autoclass('android.content.Context')
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    Log = autoclass('android.util.Log')  # For Android logcat logging
 
 
 class AndroidGPS:
@@ -38,19 +39,35 @@ class AndroidGPS:
             return
 
         try:
+            print("AndroidGPS.start() called - requesting permissions")
+            if platform == 'android':
+                Log.i("VeteranGraveApp", "AndroidGPS.start() - requesting permissions")
+
             # Request permissions
             request_permissions([
                 Permission.ACCESS_FINE_LOCATION,
                 Permission.ACCESS_COARSE_LOCATION
             ])
 
+            print("Permissions requested, getting location manager")
+            if platform == 'android':
+                Log.i("VeteranGraveApp", "Permissions requested, getting LocationManager")
+
             # Get location manager
             activity = PythonActivity.mActivity
             context = activity.getApplicationContext()
             self.location_manager = context.getSystemService(Context.LOCATION_SERVICE)
 
+            print("Creating location listener")
+            if platform == 'android':
+                Log.i("VeteranGraveApp", "Creating AndroidLocationListener")
+
             # Create location listener
             self.location_listener = AndroidLocationListener(self)
+
+            print(f"Requesting location updates from GPS_PROVIDER (min_time={min_time}ms)")
+            if platform == 'android':
+                Log.i("VeteranGraveApp", f"Requesting location updates from GPS_PROVIDER (min_time={min_time}ms)")
 
             # Request location updates from GPS provider
             self.location_manager.requestLocationUpdates(
@@ -61,9 +78,14 @@ class AndroidGPS:
             )
 
             print("GPS started successfully")
+            if platform == 'android':
+                Log.i("VeteranGraveApp", "GPS started successfully - listener registered")
 
         except Exception as e:
-            print(f"Error starting GPS: {e}")
+            error_msg = f"Error starting GPS: {e}"
+            print(error_msg)
+            if platform == 'android':
+                Log.e("VeteranGraveApp", error_msg)
             import traceback
             traceback.print_exc()
 
@@ -83,10 +105,15 @@ class AndroidGPS:
             self.lon = location.getLongitude()
             self.accuracy = location.getAccuracy()
 
-            print(f"GPS location: lat={self.lat}, lon={self.lon}, accuracy={self.accuracy}m")
+            location_msg = f"GPS location: lat={self.lat}, lon={self.lon}, accuracy={self.accuracy}m"
+            print(location_msg)
+            if platform == 'android':
+                Log.i("VeteranGraveApp", location_msg)
 
             # Call user's callback
             if self.on_location_callback:
+                if platform == 'android':
+                    Log.i("VeteranGraveApp", "Calling user location callback")
                 self.on_location_callback(
                     lat=self.lat,
                     lon=self.lon,
@@ -96,7 +123,10 @@ class AndroidGPS:
                     bearing=location.getBearing() if location.hasBearing() else None
                 )
         except Exception as e:
-            print(f"Error processing location: {e}")
+            error_msg = f"Error processing location: {e}"
+            print(error_msg)
+            if platform == 'android':
+                Log.e("VeteranGraveApp", error_msg)
             import traceback
             traceback.print_exc()
 
@@ -118,22 +148,42 @@ class AndroidLocationListener(PythonJavaClass):
     def onLocationChanged(self, locations):
         """Called with a list of locations (Android 13+)"""
         try:
+            msg = f"onLocationChanged(List) called with {locations.size() if locations else 0} locations"
+            print(msg)
+            if platform == 'android':
+                Log.i("VeteranGraveApp", msg)
+
             if locations and locations.size() > 0:
                 # Get the most recent location (last in list)
                 location = locations.get(locations.size() - 1)
+                if platform == 'android':
+                    Log.i("VeteranGraveApp", "Processing location from list")
                 self.gps._on_location_changed(location)
         except Exception as e:
-            print(f"Error in onLocationChanged(List): {e}")
+            error_msg = f"Error in onLocationChanged(List): {e}"
+            print(error_msg)
+            if platform == 'android':
+                Log.e("VeteranGraveApp", error_msg)
 
     # Also handle old API: onLocationChanged(Location) for backwards compatibility
     @java_method('(Landroid/location/Location;)V')
     def onLocationChanged_single(self, location):
         """Called with single location (older Android)"""
         try:
+            msg = f"onLocationChanged_single(Location) called"
+            print(msg)
+            if platform == 'android':
+                Log.i("VeteranGraveApp", msg)
+
             if location:
+                if platform == 'android':
+                    Log.i("VeteranGraveApp", "Processing single location")
                 self.gps._on_location_changed(location)
         except Exception as e:
-            print(f"Error in onLocationChanged(Location): {e}")
+            error_msg = f"Error in onLocationChanged(Location): {e}"
+            print(error_msg)
+            if platform == 'android':
+                Log.e("VeteranGraveApp", error_msg)
 
     @java_method('(Ljava/lang/String;)V')
     def onProviderEnabled(self, provider):
