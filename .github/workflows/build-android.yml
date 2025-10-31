@@ -52,36 +52,14 @@ jobs:
         path: .buildozer
         key: buildozer-${{ hashFiles('buildozer.spec') }}
 
-    # Step 6: Pre-accept Android SDK licenses
-    - name: Accept Android SDK licenses
-      run: |
-        mkdir -p "$ANDROID_HOME/licenses"
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license"
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> "$ANDROID_HOME/licenses/android-sdk-license"
-
-    # Step 7: Build the APK!
+    # Step 6: Build the APK!
     - name: Build with Buildozer
-      run: |
-        # Build the APK (buildozer will auto-install API 33 if licenses accepted)
-        buildozer android debug || {
-          # If build fails due to missing API, install it manually
-          if [ -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
-            SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
-            mkdir -p "$SDK_DIR/licenses"
-            echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
-            yes | "$SDK_DIR/cmdline-tools/bin/sdkmanager" --sdk_root="$SDK_DIR" "platforms;android-33" "build-tools;33.0.0" || true
-          fi
-          # Retry build
-          buildozer android debug
-        }
+      run: buildozer android debug
       env:
         # Set buildozer cache directory
         BUILDOZER_CACHE: .buildozer_global
-        # Use Java 17 for Gradle builds (required for modern Android builds)
-        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
 
-    # Step 8: Upload the APK so you can download it
+    # Step 7: Upload the APK so you can download it
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
@@ -89,7 +67,7 @@ jobs:
         path: bin/*.apk
         retention-days: 30
 
-    # Step 9: Show build summary
+    # Step 8: Show build summary
     - name: Build Summary
       run: |
         echo "Build completed successfully!"
