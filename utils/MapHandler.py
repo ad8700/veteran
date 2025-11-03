@@ -12,17 +12,27 @@ class MapHandler:
         self.user_marker = None  # Marker showing user's current location
 
     def request_location_permission(self):
-        """Request GPS permission and start location updates"""
+        """Request GPS permission and start location updates (DEPRECATED - permissions now requested in main.py)"""
+        # This method is kept for compatibility but does nothing
+        # Permissions and GPS start are now handled in main.py on_start()
+        print("MapHandler.request_location_permission() called - permissions handled in main.py")
+        pass
+
+    def start_gps_without_permission_request(self):
+        """Start GPS without requesting permissions (permissions already granted)"""
         try:
+            print("=== MapHandler: Starting GPS ===")
             # Use our custom GPS implementation
             self.gps = AndroidGPS(on_location_callback=self.on_location)
-            self.gps.start(min_time=1000, min_distance=0)
+            self.gps.start_without_requesting_permissions(min_time=1000, min_distance=0)
 
             # Update status
             if self.app:
                 self.app.update_gps_status("GPS: Searching for satellites...")
         except Exception as e:
             print(f"GPS not available: {e}")
+            import traceback
+            traceback.print_exc()
             if self.app:
                 self.app.update_gps_status("GPS: Error starting GPS")
 

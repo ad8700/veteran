@@ -53,7 +53,7 @@ class AndroidGPS:
         return fine or coarse
 
     def start(self, min_time=1000, min_distance=0):
-        """Start receiving GPS updates"""
+        """Start receiving GPS updates (DEPRECATED - use start_without_requesting_permissions)"""
         if platform != 'android':
             print("GPS only available on Android")
             return
@@ -76,15 +76,20 @@ class AndroidGPS:
             import traceback
             traceback.print_exc()
 
+    def start_without_requesting_permissions(self, min_time=1000, min_distance=0):
+        """Start GPS - assumes permissions already granted"""
+        if platform != 'android':
+            print("GPS only available on Android")
+            return
+
+        print("=== AndroidGPS: Starting GPS (permissions already requested) ===")
+        # Start immediately - no permission request, no delay
+        self._start_after_permission(min_time, min_distance)
+
     def _start_after_permission(self, min_time, min_distance):
         """Start GPS after permissions have been requested"""
         try:
-            # Check if we have permissions
-            if not self.check_permissions():
-                print("ERROR: Location permissions not granted!")
-                return
-
-            print("Location permissions granted, initializing LocationManager...")
+            print("Initializing LocationManager...")
 
             # Get location manager
             activity = PythonActivity.mActivity
