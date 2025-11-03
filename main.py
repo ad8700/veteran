@@ -152,7 +152,7 @@ class VeteranGraveMarker(App):
         grave_id = self.add_point(latitude, longitude)
 
         # Show the popup for adding veteran information
-        popup = VeteranInfoPopup(grave_id, self.get_db_path())
+        popup = VeteranInfoPopup(grave_id, self.get_db_path(), latitude, longitude)
         popup.open()
 
 if __name__ == "__main__":
