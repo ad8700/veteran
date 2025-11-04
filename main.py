@@ -83,9 +83,14 @@ class VeteranGraveMarker(App):
         conn.close()
 
     def update_gps_status(self, status_text):
-        """Update the GPS status label"""
-        if hasattr(self, 'gps_status_label'):
-            self.gps_status_label.text = status_text
+        """Update the GPS status label - must be called from main thread"""
+        # Use Clock.schedule_once to ensure UI update happens on main thread
+        def update_ui(dt):
+            if hasattr(self, 'gps_status_label'):
+                self.gps_status_label.text = status_text
+                print(f"GPS status updated to: {status_text}")
+
+        Clock.schedule_once(update_ui, 0)
 
     def on_start(self):
         """Called when the app starts - request permissions here"""
