@@ -27,7 +27,7 @@ requirements = python3,kivy,plyer,mapview
 
 # (list) Permissions needed by the app
 # IMPORTANT: These allow GPS and internet access
-android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,CAMERA
 
 # (int) Target Android API - Android 11 (API 30) for good privacy features and build stability
 android.api = 30

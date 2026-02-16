@@ -76,7 +76,9 @@ class VeteranGraveMarker(App):
             branch_of_service STRING,
             birth_year SMALLINT,
             death_year SMALLINT,
-            cemetary_name STRING
+            cemetary_name STRING,
+            notes TEXT,
+            photo_path STRING
         )""")
 
         conn.commit()
