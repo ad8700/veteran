@@ -183,12 +183,11 @@ class VeteranGraveMarker(App):
         self.main_screen = MainScreen(self)
         self.screen_manager.add_widget(self.main_screen)
 
-        # Check if user is already authenticated
+        # Check if user has previously made an auth choice
         auth_manager = get_auth_manager()
-        if auth_manager.is_authenticated() or auth_manager.is_guest:
-            # Skip to main screen if returning user
-            if auth_manager.access_token or auth_manager.is_guest:
-                self.screen_manager.current = 'main'
+        if auth_manager.has_chosen:
+            # Skip to main screen if user previously chose to sign in or continue as guest
+            self.screen_manager.current = 'main'
 
         return self.screen_manager
 

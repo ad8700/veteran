@@ -7,6 +7,8 @@ from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
 from kivy.utils import platform
+from kivy.metrics import dp
+from kivy.clock import Clock
 import os
 
 class VeteranInfoPopup(Popup):
@@ -83,16 +85,16 @@ class VeteranInfoPopup(Popup):
         self.branch_button = Button(
             text="Select Branch of Service",
             size_hint_y=None,
-            height=44
+            height=dp(56)
         )
         self.branch_button.bind(on_release=self.show_branch_dropdown)
         layout.add_widget(self.branch_button)
 
-        # Create branch dropdown
+        # Create branch dropdown with larger touch targets
         branch_options = ["Army", "Navy", "Air Force", "Marine Corps", "Coast Guard", "Space Force"]
         self.branch_dropdown = DropDown()
         for branch in branch_options:
-            btn = Button(text=branch, size_hint_y=None, height=44)
+            btn = Button(text=branch, size_hint_y=None, height=dp(56))
             btn.bind(on_release=lambda btn: self.select_branch(btn.text))
             self.branch_dropdown.add_widget(btn)
 
@@ -102,7 +104,7 @@ class VeteranInfoPopup(Popup):
         self.cemetery_button = Button(
             text="Select Cemetery (Optional)",
             size_hint_y=None,
-            height=44
+            height=dp(56)
         )
         self.cemetery_button.bind(on_release=self.show_cemetery_dropdown)
         layout.add_widget(self.cemetery_button)
@@ -118,7 +120,7 @@ class VeteranInfoPopup(Popup):
         ]
         self.cemetery_dropdown = DropDown()
         for cemetery in cemetery_options:
-            btn = Button(text=cemetery, size_hint_y=None, height=44)
+            btn = Button(text=cemetery, size_hint_y=None, height=dp(56))
             btn.bind(on_release=lambda btn: self.select_cemetery(btn.text))
             self.cemetery_dropdown.add_widget(btn)
 
@@ -222,7 +224,14 @@ class VeteranInfoPopup(Popup):
 
             # Check/request camera permission
             if not check_permission(Permission.CAMERA):
-                request_permissions([Permission.CAMERA])
+                # Request permission and schedule retry
+                def on_permission_result(permissions, grants):
+                    if grants and grants[0]:
+                        Clock.schedule_once(lambda dt: self._capture_photo(), 0.5)
+                    else:
+                        self.error_label.text = "Camera permission denied"
+
+                request_permissions([Permission.CAMERA], on_permission_result)
                 return
 
             self._capture_photo()
@@ -350,8 +359,20 @@ class VeteranInfoPopup(Popup):
             if self.photo_path:
                 print(f"  Photo: {self.photo_path}")
 
-            # Close the popup
+            # Close this popup
             self.dismiss()
+
+            # Show confirmation popup
+            confirm_popup = Popup(
+                title='Record Saved',
+                content=Label(
+                    text=f'Saved: {veteran_name}\n\nRecord saved to local database.\nTap "Sync" to upload to cloud.',
+                    halign='center'
+                ),
+                size_hint=(0.85, 0.35),
+                auto_dismiss=True
+            )
+            confirm_popup.open()
 
         except Exception as e:
             self.error_label.text = f"Database error: {str(e)}"

@@ -33,7 +33,8 @@ class AuthManager:
         self.id_token = None
         self.refresh_token = None
         self.user_info = None
-        self.is_guest = True
+        self.is_guest = False  # Start as not guest - require explicit choice
+        self.has_chosen = False  # Track if user has made auth choice
         self._code_verifier = None
 
         # Load saved tokens
@@ -58,8 +59,9 @@ class AuthManager:
                     self.id_token = data.get('id_token')
                     self.refresh_token = data.get('refresh_token')
                     self.user_info = data.get('user_info')
-                    self.is_guest = data.get('is_guest', True)
-                    print(f"Loaded auth tokens, is_guest={self.is_guest}")
+                    self.is_guest = data.get('is_guest', False)
+                    self.has_chosen = data.get('has_chosen', False)
+                    print(f"Loaded auth tokens, is_guest={self.is_guest}, has_chosen={self.has_chosen}")
         except Exception as e:
             print(f"Error loading tokens: {e}")
 
@@ -73,7 +75,8 @@ class AuthManager:
                     'id_token': self.id_token,
                     'refresh_token': self.refresh_token,
                     'user_info': self.user_info,
-                    'is_guest': self.is_guest
+                    'is_guest': self.is_guest,
+                    'has_chosen': self.has_chosen
                 }
                 with open(token_path, 'w') as f:
                     json.dump(data, f)
@@ -184,6 +187,7 @@ class AuthManager:
                 self.id_token = result.get('id_token')
                 self.refresh_token = result.get('refresh_token')
                 self.is_guest = False
+                self.has_chosen = True
 
                 # Get user info
                 self._get_user_info(on_success, on_error)
@@ -324,6 +328,7 @@ class AuthManager:
                 self.id_token = auth_result.get('IdToken')
                 self.refresh_token = auth_result.get('RefreshToken')
                 self.is_guest = False
+                self.has_chosen = True
 
                 # Decode user info from ID token
                 self._decode_id_token()
@@ -400,6 +405,7 @@ class AuthManager:
         """Continue without signing in"""
         self._clear_tokens()
         self.is_guest = True
+        self.has_chosen = True
         self._save_tokens()
         print("Continuing as guest")
         if on_success:
