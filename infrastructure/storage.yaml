@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Veteran Grave Marker - Storage Stack (DynamoDB + S3)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+
+Resources:
+  # DynamoDB Table for grave records
+  GraveLocationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub veteran-grave-locations-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: cemetery_name
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+        - AttributeName: user_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: cemetery-index
+          KeySchema:
+            - AttributeName: cemetery_name
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: user-index
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: veteran-grave-marker
+
+  # S3 Bucket for headstone photos
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub veteran-grave-photos-${Environment}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: veteran-grave-marker
+
+  # S3 Bucket Policy
+  PhotosBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PhotosBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt PhotosBucket.Arn
+              - !Sub ${PhotosBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # S3 Bucket for offline sync queue (stores pending uploads when offline)
+  SyncQueueBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub veteran-grave-sync-${Environment}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldSyncFiles
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: veteran-grave-marker
+
+Outputs:
+  GraveLocationsTableName:
+    Description: DynamoDB Table Name
+    Value: !Ref GraveLocationsTable
+    Export:
+      Name: !Sub ${AWS::StackName}-TableName
+
+  GraveLocationsTableArn:
+    Description: DynamoDB Table ARN
+    Value: !GetAtt GraveLocationsTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-TableArn
+
+  PhotosBucketName:
+    Description: S3 Photos Bucket Name
+    Value: !Ref PhotosBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-PhotosBucketName
+
+  PhotosBucketArn:
+    Description: S3 Photos Bucket ARN
+    Value: !GetAtt PhotosBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-PhotosBucketArn
+
+  SyncQueueBucketName:
+    Description: S3 Sync Queue Bucket Name
+    Value: !Ref SyncQueueBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-SyncQueueBucketName

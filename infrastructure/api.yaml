@@ -1,0 +1,265 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Veteran Grave Marker - API Stack (API Gateway + Lambda)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+
+  CognitoStackName:
+    Type: String
+    Description: Name of the Cognito CloudFormation stack
+
+  StorageStackName:
+    Type: String
+    Description: Name of the Storage CloudFormation stack
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        TABLE_NAME:
+          Fn::ImportValue: !Sub ${StorageStackName}-TableName
+        PHOTOS_BUCKET:
+          Fn::ImportValue: !Sub ${StorageStackName}-PhotosBucketName
+
+Resources:
+  # API Gateway
+  GraveApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub veteran-grave-api-${Environment}
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn:
+              Fn::ImportValue: !Sub ${CognitoStackName}-UserPoolArn
+        AddDefaultAuthorizerToCorsPreflight: false
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub veteran-grave-lambda-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - Fn::ImportValue: !Sub ${StorageStackName}-TableArn
+                  - !Sub
+                    - ${TableArn}/index/*
+                    - TableArn:
+                        Fn::ImportValue: !Sub ${StorageStackName}-TableArn
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub
+                    - ${BucketArn}/*
+                    - BucketArn:
+                        Fn::ImportValue: !Sub ${StorageStackName}-PhotosBucketArn
+
+  # Create Grave Function
+  CreateGraveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-create-${Environment}
+      CodeUri: lambda/
+      Handler: graves.create_grave
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        CreateGrave:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  # Get Grave Function
+  GetGraveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-get-${Environment}
+      CodeUri: lambda/
+      Handler: graves.get_grave
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GetGrave:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves/{id}
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # List Graves Function
+  ListGravesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-list-${Environment}
+      CodeUri: lambda/
+      Handler: graves.list_graves
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        ListGraves:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # Update Grave Function (requires authentication)
+  UpdateGraveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-update-${Environment}
+      CodeUri: lambda/
+      Handler: graves.update_grave
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        UpdateGrave:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves/{id}
+            Method: PUT
+
+  # Delete Grave Function (requires authentication)
+  DeleteGraveFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-delete-${Environment}
+      CodeUri: lambda/
+      Handler: graves.delete_grave
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        DeleteGrave:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves/{id}
+            Method: DELETE
+
+  # Photo Upload URL Function
+  PhotoUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-photo-upload-${Environment}
+      CodeUri: lambda/
+      Handler: photos.get_upload_url
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GetUploadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves/{id}/photo
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  # Photo Download URL Function
+  PhotoDownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-photo-download-${Environment}
+      CodeUri: lambda/
+      Handler: photos.get_download_url
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GetDownloadUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /graves/{id}/photo
+            Method: GET
+            Auth:
+              Authorizer: NONE
+
+  # Sync Function (for offline-first sync)
+  SyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-sync-${Environment}
+      CodeUri: lambda/
+      Handler: sync.sync_records
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        Sync:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /sync
+            Method: POST
+
+  # Export Function (CSV export)
+  ExportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub veteran-grave-export-${Environment}
+      CodeUri: lambda/
+      Handler: export.export_graves
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 60
+      Events:
+        Export:
+          Type: Api
+          Properties:
+            RestApiId: !Ref GraveApi
+            Path: /export
+            Method: GET
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${GraveApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiEndpoint
+
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref GraveApi
+    Export:
+      Name: !Sub ${AWS::StackName}-ApiId

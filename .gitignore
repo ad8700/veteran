@@ -8,6 +8,10 @@
 bin/
 build/
 
+# AWS SAM build artifacts
+.aws-sam/
+samconfig.toml
+
 # Python cache
 __pycache__/
 *.pyc

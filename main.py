@@ -2,6 +2,7 @@ import kivy
 from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.clock import Clock
@@ -12,6 +13,7 @@ import os
 # Import our custom utilities
 from utils.MapHandler import MapHandler
 from utils.veteran_info import VeteranInfoPopup
+from utils.SyncManager import SyncManager
 
 # Import Android permissions if on Android
 from kivy.utils import platform
@@ -121,6 +123,9 @@ class VeteranGraveMarker(App):
         # Initialize the database
         self.init_database()
 
+        # Initialize sync manager
+        self.sync_manager = SyncManager(self.get_db_path())
+
         layout = GridLayout(cols=1, rows=4)
 
         # GPS Status Label
@@ -133,10 +138,47 @@ class VeteranGraveMarker(App):
         # GPS will be started in on_start() after permissions are granted
         layout.add_widget(map_view)
 
-        drop_pin_button = Button(text="Drop Pin", on_press=self.drop_pin, size_hint_y=0.15)
-        layout.add_widget(drop_pin_button)
+        # Button row
+        button_layout = BoxLayout(size_hint_y=0.15, spacing=10, padding=[10, 5])
+
+        drop_pin_button = Button(text="Drop Pin", on_press=self.drop_pin)
+        button_layout.add_widget(drop_pin_button)
+
+        self.sync_button = Button(text="Sync", on_press=self.sync_data)
+        button_layout.add_widget(self.sync_button)
+
+        layout.add_widget(button_layout)
 
         return layout
+
+    def sync_data(self, instance):
+        """Sync local data with AWS backend"""
+        self.sync_button.text = "Syncing..."
+        self.sync_button.disabled = True
+
+        def on_sync_complete(result):
+            self.sync_button.text = "Sync"
+            self.sync_button.disabled = False
+            uploaded = result.get('uploaded', 0)
+            downloaded = len(result.get('downloaded', []))
+            popup = Popup(
+                title='Sync Complete',
+                content=Label(text=f'Uploaded: {uploaded} records\nDownloaded: {downloaded} records'),
+                size_hint=(0.8, 0.3)
+            )
+            popup.open()
+
+        def on_sync_error(error):
+            self.sync_button.text = "Sync"
+            self.sync_button.disabled = False
+            popup = Popup(
+                title='Sync Failed',
+                content=Label(text=f'Error: {error}\n\nMake sure you have internet connection.'),
+                size_hint=(0.8, 0.3)
+            )
+            popup.open()
+
+        self.sync_manager.sync(on_complete=on_sync_complete, on_error=on_sync_error)
 
     def drop_pin(self, instance):
         """Called when user presses 'Drop Pin' button"""
