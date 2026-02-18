@@ -146,7 +146,10 @@ class VeteranGraveMarker(App):
         Clock.schedule_once(update_ui, 0)
 
     def on_start(self):
-        """Called when the app starts - request permissions here"""
+        """Called when the app starts - request permissions and check for OAuth callback"""
+        # Check for OAuth callback (app opened via veterangravemarker://callback URL)
+        self._check_oauth_callback()
+
         if platform == 'android':
             print("=== App Started - Requesting Location Permissions ===")
             self.update_gps_status("Requesting location permission...")
@@ -157,6 +160,63 @@ class VeteranGraveMarker(App):
             ])
 
             Clock.schedule_once(self.start_gps_after_permission, 3.0)
+
+    def _check_oauth_callback(self):
+        """Check if app was opened via OAuth callback URL"""
+        if platform != 'android':
+            return
+
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            activity = PythonActivity.mActivity
+            intent = activity.getIntent()
+
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    callback_url = uri.toString()
+                    print(f"OAuth callback URL: {callback_url}")
+
+                    if 'veterangravemarker://callback' in callback_url:
+                        # Handle the OAuth callback
+                        self._handle_oauth_callback(callback_url)
+
+                        # Clear the intent data to prevent re-processing
+                        intent.setData(None)
+
+        except Exception as e:
+            print(f"Error checking OAuth callback: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _handle_oauth_callback(self, callback_url):
+        """Process OAuth callback and complete sign-in"""
+        print(f"Processing OAuth callback: {callback_url}")
+
+        auth_manager = get_auth_manager()
+
+        def on_success(user_info):
+            print(f"OAuth sign-in successful: {user_info}")
+            self.on_login_complete()
+            # Show success message
+            popup = Popup(
+                title='Signed In',
+                content=Label(text=f'Welcome, {auth_manager.get_user_display_name()}!'),
+                size_hint=(0.8, 0.3)
+            )
+            popup.open()
+
+        def on_error(error):
+            print(f"OAuth sign-in failed: {error}")
+            popup = Popup(
+                title='Sign In Failed',
+                content=Label(text=f'Error: {error}'),
+                size_hint=(0.8, 0.3)
+            )
+            popup.open()
+
+        auth_manager.handle_oauth_callback(callback_url, on_success, on_error)
 
     def start_gps_after_permission(self, dt):
         """Start GPS after giving user time to grant permissions"""

@@ -13,7 +13,7 @@ package.domain = org.veterangraves
 source.dir = .
 
 # (str) The main entry point file
-source.include_exts = py,png,jpg,kv,atlas,db
+source.include_exts = py,png,jpg,kv,atlas,db,xml
 
 # (str) Application versioning (used in app stores)
 version = 0.1
@@ -43,6 +43,9 @@ android.copy_libs = 1
 
 # (str) Android entry point - default is ok for Kivy apps
 android.entrypoint = org.kivy.android.PythonActivity
+
+# (str) Intent filters for handling OAuth callback URLs
+android.manifest.intent_filters = intent_filters.xml
 
 # (str) Supported orientation (landscape, portrait, all)
 orientation = portrait
