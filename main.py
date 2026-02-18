@@ -1,5 +1,6 @@
 import kivy
 from kivy.app import App
+from kivy.core.window import Window
 from kivy.uix.label import Label
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
@@ -10,6 +11,9 @@ from kivy.clock import Clock
 from kivy_garden.mapview import MapView, MapMarker
 import sqlite3
 import os
+
+# Set keyboard mode to resize window (fixes keyboard covering input fields)
+Window.softinput_mode = 'below_target'
 
 # Import our custom utilities
 from utils.MapHandler import MapHandler
@@ -147,6 +151,11 @@ class VeteranGraveMarker(App):
 
     def on_start(self):
         """Called when the app starts - request permissions and check for OAuth callback"""
+        # Bind new intent handler for when app is already running
+        if platform == 'android':
+            from android import activity
+            activity.bind(on_new_intent=self.on_new_intent)
+
         # Check for OAuth callback (app opened via veterangravemarker://callback URL)
         self._check_oauth_callback()
 
@@ -169,54 +178,100 @@ class VeteranGraveMarker(App):
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
             activity = PythonActivity.mActivity
             intent = activity.getIntent()
 
             if intent:
+                action = intent.getAction()
+                print(f"Intent action: {action}")
+
                 uri = intent.getData()
                 if uri:
                     callback_url = uri.toString()
-                    print(f"OAuth callback URL: {callback_url}")
+                    print(f"=== OAuth callback URL received: {callback_url} ===")
 
-                    if 'veterangravemarker://callback' in callback_url:
+                    if 'veterangravemarker://' in callback_url or 'code=' in callback_url:
                         # Handle the OAuth callback
-                        self._handle_oauth_callback(callback_url)
+                        Clock.schedule_once(lambda dt: self._handle_oauth_callback(callback_url), 0.5)
 
                         # Clear the intent data to prevent re-processing
                         intent.setData(None)
+                        # Also set a flag to prevent double processing
+                        self._oauth_callback_processed = True
+                else:
+                    print("No URI data in intent")
 
         except Exception as e:
             print(f"Error checking OAuth callback: {e}")
             import traceback
             traceback.print_exc()
 
+    def on_new_intent(self, intent):
+        """Handle new intent when app is already running"""
+        print("=== on_new_intent called ===")
+        try:
+            uri = intent.getData()
+            if uri:
+                callback_url = uri.toString()
+                print(f"New intent URL: {callback_url}")
+                if 'veterangravemarker://' in callback_url or 'code=' in callback_url:
+                    Clock.schedule_once(lambda dt: self._handle_oauth_callback(callback_url), 0.5)
+        except Exception as e:
+            print(f"Error in on_new_intent: {e}")
+
     def _handle_oauth_callback(self, callback_url):
         """Process OAuth callback and complete sign-in"""
-        print(f"Processing OAuth callback: {callback_url}")
+        print(f"=== Processing OAuth callback ===")
+        print(f"URL: {callback_url}")
+
+        # Parse the URL to check for errors
+        if 'error=' in callback_url:
+            error_start = callback_url.find('error=') + 6
+            error_end = callback_url.find('&', error_start)
+            error = callback_url[error_start:error_end if error_end > 0 else None]
+            print(f"OAuth error in URL: {error}")
+            popup = Popup(
+                title='Sign In Failed',
+                content=Label(text=f'OAuth Error: {error}'),
+                size_hint=(0.8, 0.3)
+            )
+            popup.open()
+            return
 
         auth_manager = get_auth_manager()
 
         def on_success(user_info):
-            print(f"OAuth sign-in successful: {user_info}")
-            self.on_login_complete()
+            print(f"=== OAuth sign-in successful ===")
+            print(f"User info: {user_info}")
+            # Navigate to main screen
+            self.screen_manager.current = 'main'
+            # Update user status
+            if hasattr(self.main_screen, 'user_status'):
+                self.main_screen.user_status.update()
             # Show success message
-            popup = Popup(
-                title='Signed In',
-                content=Label(text=f'Welcome, {auth_manager.get_user_display_name()}!'),
-                size_hint=(0.8, 0.3)
-            )
-            popup.open()
+            Clock.schedule_once(lambda dt: self._show_welcome_popup(auth_manager.get_user_display_name()), 0.5)
 
         def on_error(error):
-            print(f"OAuth sign-in failed: {error}")
+            print(f"=== OAuth sign-in failed ===")
+            print(f"Error: {error}")
             popup = Popup(
                 title='Sign In Failed',
-                content=Label(text=f'Error: {error}'),
-                size_hint=(0.8, 0.3)
+                content=Label(text=f'Error: {str(error)[:100]}'),
+                size_hint=(0.8, 0.4)
             )
             popup.open()
 
         auth_manager.handle_oauth_callback(callback_url, on_success, on_error)
+
+    def _show_welcome_popup(self, name):
+        """Show welcome popup after sign-in"""
+        popup = Popup(
+            title='Signed In',
+            content=Label(text=f'Welcome, {name}!'),
+            size_hint=(0.8, 0.3)
+        )
+        popup.open()
 
     def start_gps_after_permission(self, dt):
         """Start GPS after giving user time to grant permissions"""

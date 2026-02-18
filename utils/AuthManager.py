@@ -61,6 +61,7 @@ class AuthManager:
                     self.user_info = data.get('user_info')
                     self.is_guest = data.get('is_guest', False)
                     self.has_chosen = data.get('has_chosen', False)
+                    self._code_verifier = data.get('code_verifier')
                     print(f"Loaded auth tokens, is_guest={self.is_guest}, has_chosen={self.has_chosen}")
         except Exception as e:
             print(f"Error loading tokens: {e}")
@@ -76,7 +77,8 @@ class AuthManager:
                     'refresh_token': self.refresh_token,
                     'user_info': self.user_info,
                     'is_guest': self.is_guest,
-                    'has_chosen': self.has_chosen
+                    'has_chosen': self.has_chosen,
+                    'code_verifier': self._code_verifier
                 }
                 with open(token_path, 'w') as f:
                     json.dump(data, f)
@@ -132,6 +134,9 @@ class AuthManager:
         """Get the URL for Google Sign-In via Cognito Hosted UI"""
         code_challenge = self._generate_pkce()
 
+        # Save the code verifier in case app is killed during OAuth
+        self._save_tokens()
+
         params = {
             'client_id': USER_POOL_CLIENT_ID,
             'response_type': 'code',
@@ -143,35 +148,58 @@ class AuthManager:
         }
 
         url = f"{COGNITO_DOMAIN}/oauth2/authorize?{urlencode(params)}"
+        print(f"Generated Google Sign-In URL with code_verifier saved")
         return url
 
     def handle_oauth_callback(self, callback_url, on_success=None, on_error=None):
         """Handle OAuth callback URL and exchange code for tokens"""
         try:
+            print(f"=== AuthManager: Handling OAuth callback ===")
+            print(f"URL: {callback_url}")
+
             parsed = urlparse(callback_url)
+            print(f"Parsed scheme: {parsed.scheme}, netloc: {parsed.netloc}, query: {parsed.query}")
+
             params = parse_qs(parsed.query)
+            print(f"Query params: {list(params.keys())}")
 
             if 'error' in params:
                 error = params.get('error_description', params.get('error', ['Unknown error']))[0]
+                print(f"OAuth error: {error}")
                 if on_error:
                     on_error(error)
                 return
 
             if 'code' not in params:
+                print("No authorization code in callback URL")
                 if on_error:
                     on_error("No authorization code received")
                 return
 
             auth_code = params['code'][0]
+            print(f"Got authorization code: {auth_code[:20]}...")
+
+            if not self._code_verifier:
+                print("ERROR: No code_verifier available!")
+                if on_error:
+                    on_error("Session expired - please try signing in again")
+                return
+
+            print(f"Using code_verifier: {self._code_verifier[:20]}...")
             self._exchange_code_for_tokens(auth_code, on_success, on_error)
 
         except Exception as e:
+            print(f"Error in handle_oauth_callback: {e}")
+            import traceback
+            traceback.print_exc()
             if on_error:
                 on_error(str(e))
 
     def _exchange_code_for_tokens(self, auth_code, on_success=None, on_error=None):
         """Exchange authorization code for tokens"""
         token_url = f"{COGNITO_DOMAIN}/oauth2/token"
+        print(f"=== Exchanging code for tokens ===")
+        print(f"Token URL: {token_url}")
 
         body = urlencode({
             'grant_type': 'authorization_code',
@@ -180,8 +208,11 @@ class AuthManager:
             'redirect_uri': REDIRECT_URI,
             'code_verifier': self._code_verifier
         })
+        print(f"Request body: grant_type=authorization_code, client_id={USER_POOL_CLIENT_ID[:10]}...")
 
         def handle_response(req, result):
+            print(f"=== Token response received ===")
+            print(f"Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
             try:
                 self.access_token = result.get('access_token')
                 self.id_token = result.get('id_token')
@@ -193,20 +224,31 @@ class AuthManager:
                 self._get_user_info(on_success, on_error)
 
             except Exception as e:
+                print(f"Error processing token response: {e}")
                 if on_error:
                     Clock.schedule_once(lambda dt: on_error(str(e)), 0)
 
         def handle_error(req, error):
+            print(f"=== Token exchange error ===")
+            print(f"Error: {error}")
+            print(f"Request: {req}")
             if on_error:
                 Clock.schedule_once(lambda dt: on_error(str(error)), 0)
 
+        def handle_failure(req, result):
+            print(f"=== Token exchange failure ===")
+            print(f"Result: {result}")
+            if on_error:
+                Clock.schedule_once(lambda dt: on_error(f"Token exchange failed: {result}"), 0)
+
+        print("Sending token request...")
         UrlRequest(
             token_url,
             req_body=body,
             req_headers={'Content-Type': 'application/x-www-form-urlencoded'},
             on_success=handle_response,
             on_error=handle_error,
-            on_failure=handle_error,
+            on_failure=handle_failure,
             method='POST'
         )
 
