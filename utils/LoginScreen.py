@@ -1,11 +1,5 @@
 """
-LoginScreen - User authentication UI for Veteran Grave Marker app
-
-Provides options for:
-- Sign in with Google
-- Sign in with email/password
-- Create account
-- Continue as guest
+LoginScreen - Modern authentication UI for Veteran Grave Marker app
 """
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -16,8 +10,55 @@ from kivy.uix.button import Button
 from kivy.uix.popup import Popup
 from kivy.utils import platform
 from kivy.clock import Clock
+from kivy.metrics import dp
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 
 from utils.AuthManager import get_auth_manager
+
+# ── Color Palette ──
+COLORS = {
+    'bg':          (0.11, 0.11, 0.16, 1),
+    'surface':     (0.16, 0.17, 0.23, 1),
+    'card':        (0.20, 0.21, 0.28, 1),
+    'primary':     (0.20, 0.50, 0.90, 1),
+    'accent':      (0.00, 0.59, 0.53, 1),
+    'google':      (0.85, 0.26, 0.22, 1),
+    'text':        (0.93, 0.93, 0.96, 1),
+    'text_dim':    (0.55, 0.57, 0.63, 1),
+    'white':       (1, 1, 1, 1),
+    'input_bg':    (0.14, 0.14, 0.20, 1),
+    'danger':      (1, 0.35, 0.35, 1),
+}
+
+
+def _flat_btn(text, bg_key='primary', height=dp(48), font_size='16sp', **kw):
+    return Button(
+        text=text,
+        size_hint_y=None,
+        height=height,
+        font_size=font_size,
+        background_normal='',
+        background_color=COLORS.get(bg_key, COLORS['primary']),
+        color=COLORS['white'],
+        bold=True,
+        **kw,
+    )
+
+
+def _styled_input(hint, **kw):
+    return TextInput(
+        hint_text=hint,
+        multiline=False,
+        size_hint_y=None,
+        height=dp(46),
+        background_color=COLORS['input_bg'],
+        foreground_color=COLORS['text'],
+        hint_text_color=COLORS['text_dim'],
+        cursor_color=COLORS['primary'],
+        padding=[dp(12), dp(10)],
+        font_size='15sp',
+        **kw,
+    )
 
 
 class LoginScreen(Screen):
@@ -29,138 +70,121 @@ class LoginScreen(Screen):
         self.on_login_complete = on_login_complete
         self.auth_manager = get_auth_manager()
 
-        # Check if already authenticated
         if self.auth_manager.is_authenticated():
-            # Skip login screen
             Clock.schedule_once(lambda dt: self._complete_login(), 0.1)
             return
 
         self._build_ui()
 
     def _build_ui(self):
-        """Build the login screen UI"""
-        # Main layout
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
+        root = BoxLayout(orientation='vertical', padding=[dp(24), dp(32)], spacing=dp(14))
+        with root.canvas.before:
+            Color(*COLORS['bg'])
+            self._bg = Rectangle(size=root.size, pos=root.pos)
+        root.bind(
+            size=lambda w, v: setattr(self._bg, 'size', v),
+            pos=lambda w, v: setattr(self._bg, 'pos', v),
+        )
 
         # Title
+        root.add_widget(Label(size_hint_y=0.08))  # top spacer
+
         title = Label(
             text='Veteran Grave Marker',
-            font_size='24sp',
-            size_hint_y=0.15,
-            bold=True
+            font_size='26sp',
+            size_hint_y=None,
+            height=dp(40),
+            bold=True,
+            color=COLORS['text'],
         )
-        layout.add_widget(title)
+        root.add_widget(title)
 
-        # Subtitle
         subtitle = Label(
             text='Sign in to sync your data across devices',
             font_size='14sp',
-            size_hint_y=0.08,
-            color=(0.7, 0.7, 0.7, 1)
+            size_hint_y=None,
+            height=dp(24),
+            color=COLORS['text_dim'],
         )
-        layout.add_widget(subtitle)
+        root.add_widget(subtitle)
 
-        # Spacer
-        layout.add_widget(Label(size_hint_y=0.1))
+        root.add_widget(Label(size_hint_y=0.06))  # spacer
 
-        # Google Sign-In Button
-        google_btn = Button(
-            text='Sign in with Google',
-            size_hint_y=0.12,
-            background_color=(0.9, 0.3, 0.2, 1)
-        )
+        # Google sign-in
+        google_btn = _flat_btn('Sign in with Google', bg_key='google', height=dp(50), font_size='17sp')
         google_btn.bind(on_press=self._sign_in_with_google)
-        layout.add_widget(google_btn)
+        root.add_widget(google_btn)
 
         # Divider
-        divider_layout = BoxLayout(size_hint_y=0.08, spacing=10)
-        divider_layout.add_widget(Label(text='───────', color=(0.5, 0.5, 0.5, 1)))
-        divider_layout.add_widget(Label(text='or', color=(0.5, 0.5, 0.5, 1), size_hint_x=0.3))
-        divider_layout.add_widget(Label(text='───────', color=(0.5, 0.5, 0.5, 1)))
-        layout.add_widget(divider_layout)
+        divider = BoxLayout(size_hint_y=None, height=dp(30), spacing=dp(8))
+        divider.add_widget(Label(text='', size_hint_x=0.4))
+        divider.add_widget(Label(text='or', color=COLORS['text_dim'], font_size='13sp', size_hint_x=0.2))
+        divider.add_widget(Label(text='', size_hint_x=0.4))
+        root.add_widget(divider)
 
-        # Email input
-        self.email_input = TextInput(
-            hint_text='Email',
-            multiline=False,
-            size_hint_y=0.1,
-            input_type='mail'
-        )
-        layout.add_widget(self.email_input)
+        # Email / password
+        self.email_input = _styled_input('Email', input_type='mail')
+        root.add_widget(self.email_input)
 
-        # Password input
-        self.password_input = TextInput(
-            hint_text='Password',
-            multiline=False,
-            password=True,
-            size_hint_y=0.1
-        )
-        layout.add_widget(self.password_input)
+        self.password_input = _styled_input('Password', password=True)
+        root.add_widget(self.password_input)
 
-        # Error label
+        # Error
         self.error_label = Label(
             text='',
-            color=(1, 0.3, 0.3, 1),
-            size_hint_y=0.08
+            color=COLORS['danger'],
+            size_hint_y=None,
+            height=dp(24),
+            font_size='13sp',
         )
-        layout.add_widget(self.error_label)
+        root.add_widget(self.error_label)
 
-        # Sign In / Create Account buttons
-        button_row = BoxLayout(size_hint_y=0.12, spacing=10)
-
-        sign_in_btn = Button(text='Sign In')
+        # Buttons
+        btn_row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(10))
+        sign_in_btn = _flat_btn('Sign In', bg_key='primary')
         sign_in_btn.bind(on_press=self._sign_in_email)
-        button_row.add_widget(sign_in_btn)
+        btn_row.add_widget(sign_in_btn)
 
-        create_btn = Button(text='Create Account')
+        create_btn = _flat_btn('Create Account', bg_key='surface')
         create_btn.bind(on_press=self._show_create_account)
-        button_row.add_widget(create_btn)
+        btn_row.add_widget(create_btn)
+        root.add_widget(btn_row)
 
-        layout.add_widget(button_row)
+        root.add_widget(Label(size_hint_y=0.04))  # spacer
 
-        # Spacer
-        layout.add_widget(Label(size_hint_y=0.05))
-
-        # Guest button
-        guest_btn = Button(
-            text='Continue as Guest',
-            size_hint_y=0.1,
-            background_color=(0.3, 0.3, 0.3, 1)
-        )
+        # Guest
+        guest_btn = _flat_btn('Continue as Guest', bg_key='card', height=dp(46), font_size='15sp')
         guest_btn.bind(on_press=self._continue_as_guest)
-        layout.add_widget(guest_btn)
+        root.add_widget(guest_btn)
 
-        # Info text
         info = Label(
             text='Guest data is stored locally only.\nSign in to sync across devices.',
             font_size='12sp',
-            size_hint_y=0.12,
-            color=(0.6, 0.6, 0.6, 1)
+            size_hint_y=None,
+            height=dp(36),
+            color=COLORS['text_dim'],
         )
-        layout.add_widget(info)
+        root.add_widget(info)
 
-        self.add_widget(layout)
+        root.add_widget(Label(size_hint_y=0.1))  # bottom spacer
+
+        self.add_widget(root)
 
     def _sign_in_with_google(self, instance):
-        """Initiate Google Sign-In"""
         self.error_label.text = ''
-
         if platform == 'android':
-            # Open browser for Google OAuth
             url = self.auth_manager.get_google_sign_in_url()
             self._open_browser(url)
         else:
             self.error_label.text = 'Google Sign-In requires Android device'
 
     def _open_browser(self, url):
-        """Open URL in browser for OAuth"""
         try:
             if platform == 'android':
                 from jnius import autoclass
                 Intent = autoclass('android.content.Intent')
                 Uri = autoclass('android.net.Uri')
                 PythonActivity = autoclass('org.kivy.android.PythonActivity')
-
                 intent = Intent(Intent.ACTION_VIEW)
                 intent.setData(Uri.parse(url))
                 PythonActivity.mActivity.startActivity(intent)
@@ -171,7 +195,6 @@ class LoginScreen(Screen):
             self.error_label.text = f'Error opening browser: {str(e)}'
 
     def handle_oauth_callback(self, url):
-        """Handle OAuth callback from browser redirect"""
         def on_success(user_info):
             self._complete_login()
 
@@ -181,7 +204,6 @@ class LoginScreen(Screen):
         self.auth_manager.handle_oauth_callback(url, on_success, on_error)
 
     def _sign_in_email(self, instance):
-        """Sign in with email and password"""
         email = self.email_input.text.strip()
         password = self.password_input.text
 
@@ -203,64 +225,32 @@ class LoginScreen(Screen):
         self.auth_manager.sign_in(email, password, on_success, on_error)
 
     def _show_create_account(self, instance):
-        """Show create account popup"""
-        popup_content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        popup_content = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
 
-        name_input = TextInput(
-            hint_text='Name',
-            multiline=False,
-            size_hint_y=None,
-            height=44
-        )
+        name_input = _styled_input('Name')
         popup_content.add_widget(name_input)
 
-        email_input = TextInput(
-            hint_text='Email',
-            multiline=False,
-            size_hint_y=None,
-            height=44,
-            input_type='mail'
-        )
+        email_input = _styled_input('Email', input_type='mail')
         popup_content.add_widget(email_input)
 
-        password_input = TextInput(
-            hint_text='Password (8+ characters)',
-            multiline=False,
-            password=True,
-            size_hint_y=None,
-            height=44
-        )
+        password_input = _styled_input('Password (8+ characters)', password=True)
         popup_content.add_widget(password_input)
 
-        error_label = Label(
-            text='',
-            color=(1, 0.3, 0.3, 1),
-            size_hint_y=None,
-            height=30
-        )
+        error_label = Label(text='', color=COLORS['danger'], size_hint_y=None, height=dp(24), font_size='13sp')
         popup_content.add_widget(error_label)
 
-        button_row = BoxLayout(size_hint_y=None, height=44, spacing=10)
-
-        popup = Popup(
-            title='Create Account',
-            content=popup_content,
-            size_hint=(0.9, 0.6)
-        )
+        popup = Popup(title='Create Account', content=popup_content, size_hint=(0.9, 0.6))
 
         def do_create(btn):
             name = name_input.text.strip()
             email = email_input.text.strip()
             password = password_input.text
-
             if not email or not password:
                 error_label.text = 'Email and password required'
                 return
-
             if len(password) < 8:
                 error_label.text = 'Password must be 8+ characters'
                 return
-
             error_label.text = 'Creating account...'
             btn.disabled = True
 
@@ -274,66 +264,50 @@ class LoginScreen(Screen):
 
             self.auth_manager.sign_up(email, password, name, on_success, on_error)
 
-        create_btn = Button(text='Create')
+        btn_row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(10))
+        create_btn = _flat_btn('Create', bg_key='primary')
         create_btn.bind(on_press=do_create)
-        button_row.add_widget(create_btn)
+        btn_row.add_widget(create_btn)
 
-        cancel_btn = Button(text='Cancel')
+        cancel_btn = _flat_btn('Cancel', bg_key='surface')
         cancel_btn.bind(on_press=lambda x: popup.dismiss())
-        button_row.add_widget(cancel_btn)
+        btn_row.add_widget(cancel_btn)
 
-        popup_content.add_widget(button_row)
+        popup_content.add_widget(btn_row)
         popup.open()
 
     def _show_verification_popup(self, email):
-        """Show email verification popup"""
-        popup_content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        popup_content = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(10))
 
         info = Label(
             text=f'A verification code was sent to:\n{email}\n\nEnter the code below:',
-            size_hint_y=0.4
+            size_hint_y=0.4,
+            color=COLORS['text'],
         )
         popup_content.add_widget(info)
 
-        code_input = TextInput(
-            hint_text='Verification Code',
-            multiline=False,
-            size_hint_y=None,
-            height=44,
-            input_filter='int'
-        )
+        code_input = _styled_input('Verification Code', input_filter='int')
         popup_content.add_widget(code_input)
 
-        error_label = Label(
-            text='',
-            color=(1, 0.3, 0.3, 1),
-            size_hint_y=None,
-            height=30
-        )
+        error_label = Label(text='', color=COLORS['danger'], size_hint_y=None, height=dp(24), font_size='13sp')
         popup_content.add_widget(error_label)
 
-        popup = Popup(
-            title='Verify Email',
-            content=popup_content,
-            size_hint=(0.9, 0.5)
-        )
+        popup = Popup(title='Verify Email', content=popup_content, size_hint=(0.9, 0.5))
 
         def do_verify(btn):
             code = code_input.text.strip()
             if not code:
                 error_label.text = 'Enter verification code'
                 return
-
             error_label.text = 'Verifying...'
             btn.disabled = True
 
             def on_success(result):
                 popup.dismiss()
-                # Show success message
                 success_popup = Popup(
                     title='Success',
                     content=Label(text='Account created!\nYou can now sign in.'),
-                    size_hint=(0.8, 0.3)
+                    size_hint=(0.8, 0.3),
                 )
                 success_popup.open()
 
@@ -343,25 +317,22 @@ class LoginScreen(Screen):
 
             self.auth_manager.confirm_sign_up(email, code, on_success, on_error)
 
-        button_row = BoxLayout(size_hint_y=None, height=44, spacing=10)
-
-        verify_btn = Button(text='Verify')
+        btn_row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(10))
+        verify_btn = _flat_btn('Verify', bg_key='primary')
         verify_btn.bind(on_press=do_verify)
-        button_row.add_widget(verify_btn)
+        btn_row.add_widget(verify_btn)
 
-        cancel_btn = Button(text='Cancel')
+        cancel_btn = _flat_btn('Cancel', bg_key='surface')
         cancel_btn.bind(on_press=lambda x: popup.dismiss())
-        button_row.add_widget(cancel_btn)
+        btn_row.add_widget(cancel_btn)
 
-        popup_content.add_widget(button_row)
+        popup_content.add_widget(btn_row)
         popup.open()
 
     def _continue_as_guest(self, instance):
-        """Continue without signing in"""
         self.auth_manager.continue_as_guest(on_success=self._complete_login)
 
     def _complete_login(self):
-        """Called when login is complete (or skipped)"""
         if self.on_login_complete:
             self.on_login_complete()
 
@@ -373,29 +344,40 @@ class UserStatusBar(BoxLayout):
         super(UserStatusBar, self).__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
-        self.height = 40
-        self.padding = [10, 5]
-        self.spacing = 10
-
+        self.height = dp(42)
+        self.padding = [dp(12), dp(4)]
+        self.spacing = dp(8)
         self.on_sign_out = on_sign_out
         self.auth_manager = get_auth_manager()
+
+        with self.canvas.before:
+            Color(0.14, 0.14, 0.20, 1)
+            self._bg = Rectangle(size=self.size, pos=self.pos)
+        self.bind(
+            size=lambda w, v: setattr(self._bg, 'size', v),
+            pos=lambda w, v: setattr(self._bg, 'pos', v),
+        )
 
         self._build_ui()
 
     def _build_ui(self):
-        # User label
         self.user_label = Label(
             text=self._get_user_text(),
             halign='left',
-            size_hint_x=0.7
+            size_hint_x=0.7,
+            font_size='13sp',
+            color=(0.75, 0.76, 0.80, 1),
         )
         self.user_label.bind(size=self.user_label.setter('text_size'))
         self.add_widget(self.user_label)
 
-        # Sign out / Sign in button
         self.auth_button = Button(
             text='Sign Out' if self.auth_manager.is_authenticated() else 'Sign In',
-            size_hint_x=0.3
+            size_hint_x=0.3,
+            background_normal='',
+            background_color=(0.20, 0.21, 0.28, 1),
+            color=(0.75, 0.76, 0.80, 1),
+            font_size='13sp',
         )
         self.auth_button.bind(on_press=self._on_auth_button)
         self.add_widget(self.auth_button)
@@ -418,6 +400,5 @@ class UserStatusBar(BoxLayout):
             self.on_sign_out()
 
     def update(self):
-        """Update the UI to reflect current auth state"""
         self.user_label.text = self._get_user_text()
         self.auth_button.text = 'Sign Out' if self.auth_manager.is_authenticated() else 'Sign In'
