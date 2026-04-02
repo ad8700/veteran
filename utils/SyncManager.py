@@ -10,6 +10,7 @@ from kivy.app import App
 from kivy.clock import Clock
 
 from utils.config import API_ENDPOINT
+from utils.AuthManager import get_auth_manager
 
 
 class SyncManager:
@@ -115,6 +116,15 @@ class SyncManager:
             print("Sync already in progress")
             return
 
+        # Check if user is authenticated
+        auth_manager = get_auth_manager()
+        if auth_manager.is_guest:
+            if on_error:
+                Clock.schedule_once(
+                    lambda dt: on_error("Sign in to sync data.\nGuest data is stored locally only."), 0
+                )
+            return
+
         self.sync_in_progress = True
         pending_records = self.get_pending_records()
 
@@ -177,11 +187,19 @@ class SyncManager:
             if on_error:
                 Clock.schedule_once(lambda dt: on_error(str(result)), 0)
 
+        # Build headers with auth token
+        headers = {'Content-Type': 'application/json'}
+        auth_manager = get_auth_manager()
+        if auth_manager.is_authenticated() and auth_manager.access_token:
+            headers['Authorization'] = f'Bearer {auth_manager.access_token}'
+        elif auth_manager.id_token:
+            headers['Authorization'] = f'Bearer {auth_manager.id_token}'
+
         # Make sync request
         UrlRequest(
             f"{API_ENDPOINT}/sync",
             req_body=json.dumps(payload),
-            req_headers={'Content-Type': 'application/json'},
+            req_headers=headers,
             on_success=handle_success,
             on_error=handle_error,
             on_failure=handle_failure,
@@ -264,10 +282,17 @@ class SyncManager:
             if on_error:
                 Clock.schedule_once(lambda dt: on_error(str(error)), 0)
 
-        # Get pre-signed upload URL
+        # Get pre-signed upload URL (with auth)
+        photo_headers = {'Content-Type': 'application/json'}
+        auth_manager = get_auth_manager()
+        if auth_manager.is_authenticated() and auth_manager.access_token:
+            photo_headers['Authorization'] = f'Bearer {auth_manager.access_token}'
+        elif auth_manager.id_token:
+            photo_headers['Authorization'] = f'Bearer {auth_manager.id_token}'
+
         UrlRequest(
             f"{API_ENDPOINT}/graves/{grave_id}/photo",
-            req_headers={'Content-Type': 'application/json'},
+            req_headers=photo_headers,
             on_success=handle_url_success,
             on_error=handle_url_error,
             on_failure=handle_url_error,
