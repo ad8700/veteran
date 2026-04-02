@@ -109,6 +109,8 @@ class AndroidGPS:
             print("GPS already started, skipping")
             return
         self._started = True
+        self._min_time = min_time
+        self._min_distance = min_distance
 
         try:
             print("=== Starting GPS location updates ===")
@@ -141,23 +143,30 @@ class AndroidGPS:
             self._prime_with_last_known()
 
             # Request continuous updates from available providers
+            # Wrap each individually so one failing doesn't block the other
             if self.gps_enabled:
-                self.location_manager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    min_time,
-                    float(min_distance),
-                    self.location_listener
-                )
-                print("Registered for GPS provider updates")
+                try:
+                    self.location_manager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER,
+                        min_time,
+                        float(min_distance),
+                        self.location_listener
+                    )
+                    print("Registered for GPS provider updates")
+                except Exception as e:
+                    print(f"Failed to register GPS provider: {e}")
 
             if self.network_enabled:
-                self.location_manager.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    min_time,
-                    float(min_distance),
-                    self.location_listener
-                )
-                print("Registered for Network provider updates")
+                try:
+                    self.location_manager.requestLocationUpdates(
+                        LocationManager.NETWORK_PROVIDER,
+                        min_time,
+                        float(min_distance),
+                        self.location_listener
+                    )
+                    print("Registered for Network provider updates")
+                except Exception as e:
+                    print(f"Failed to register Network provider: {e}")
 
             if not self._has_fix:
                 self._update_status("GPS: Searching for satellites...")
@@ -169,7 +178,15 @@ class AndroidGPS:
             print(f"Error starting GPS: {e}")
             import traceback
             traceback.print_exc()
-            self._update_status("GPS: Error starting")
+            self._update_status("GPS: Retrying...")
+            # Allow retry - reset _started so retry can re-attempt
+            self._started = False
+            self._retry_event = Clock.schedule_once(self._retry_start, 3.0)
+
+    def _retry_start(self, dt):
+        """Retry GPS initialization after an error"""
+        print("Retrying GPS start...")
+        self._start_location_updates(self._min_time, self._min_distance)
 
     def _prime_with_last_known(self):
         """Get last known location immediately to avoid waiting for a fix"""
