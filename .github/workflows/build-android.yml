@@ -52,12 +52,12 @@ jobs:
         path: .buildozer
         key: buildozer-${{ hashFiles('buildozer.spec') }}
 
-    # Step 6: Build the APK (buildozer will download SDK and we'll install API 30 after)
+    # Step 6: Build the APK
     - name: Build with Buildozer
       run: |
-        # Run buildozer - it will fail but download the SDK
+        # Run buildozer - it may fail on first attempt while downloading SDK
         buildozer android debug || {
-          # Now that buildozer has downloaded SDK, accept licenses and install API 30
+          # Now that buildozer has downloaded SDK, accept licenses and install required platform
           if [ -d "$HOME/.buildozer/android/platform/android-sdk" ]; then
             SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
 
@@ -66,18 +66,26 @@ jobs:
             echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$SDK_DIR/licenses/android-sdk-license"
             echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$SDK_DIR/licenses/android-sdk-license"
 
-            # Install API 30 platform and build tools
-            yes | $SDK_DIR/tools/bin/sdkmanager --sdk_root="$SDK_DIR" "platforms;android-30" "build-tools;30.0.3" || true
+            # Install API 34 platform and build tools to match buildozer.spec
+            yes | $SDK_DIR/tools/bin/sdkmanager --sdk_root="$SDK_DIR" \
+              "platforms;android-34" "build-tools;34.0.0" \
+              "platforms;android-30" "build-tools;30.0.3" || true
+
+            # Also try cmdline-tools if tools/bin doesn't exist
+            if [ -d "$SDK_DIR/cmdline-tools/latest/bin" ]; then
+              yes | $SDK_DIR/cmdline-tools/latest/bin/sdkmanager --sdk_root="$SDK_DIR" \
+                "platforms;android-34" "build-tools;34.0.0" \
+                "platforms;android-30" "build-tools;30.0.3" || true
+            fi
           fi
 
-          # Retry build with API 30 now installed
+          # Retry build with correct platform installed
           buildozer android debug
         }
       env:
-        # Set buildozer cache directory
         BUILDOZER_CACHE: .buildozer_global
-        # Use Java 17 for Gradle (required for modern Android builds)
-        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+        # Java 17 path on ubuntu-22.04 runners
+        JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
 
     # Step 8: Upload the APK so you can download it
     - name: Upload APK artifact
