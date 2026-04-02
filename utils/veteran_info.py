@@ -326,7 +326,10 @@ class VeteranInfoPopup(Popup):
             self.error_label.text = "Camera only available on Android device"
 
     def _launch_camera(self):
-        """Launch camera using native Android intent with FileProvider (works on API 24+)"""
+        """Launch camera using native Android intent.
+        Uses getExternalFilesDir + StrictMode bypass (standard Kivy/p4a approach).
+        FileProvider is NOT available in default p4a builds.
+        """
         try:
             from jnius import autoclass, cast
             from android import activity as android_activity
@@ -336,48 +339,50 @@ class VeteranInfoPopup(Popup):
             MediaStore = autoclass('android.provider.MediaStore')
             Uri = autoclass('android.net.Uri')
             File = autoclass('java.io.File')
-            FileProvider = autoclass('androidx.core.content.FileProvider')
-            Context = autoclass('android.content.Context')
+            Environment = autoclass('android.os.Environment')
+
+            # Disable StrictMode file URI check (required for API 24+)
+            # This is the standard workaround for Kivy apps without FileProvider
+            StrictMode = autoclass('android.os.StrictMode')
+            VmPolicyBuilder = autoclass('android.os.StrictMode$VmPolicy$Builder')
+            StrictMode.setVmPolicy(VmPolicyBuilder().build())
 
             current_activity = PythonActivity.mActivity
-            package_name = current_activity.getPackageName()
 
-            # Create photos directory in app's files dir (private, no extra permissions)
-            from kivy.app import App
-            app = App.get_running_app()
-            photos_dir = os.path.join(app.user_data_dir, 'photos')
-            if not os.path.exists(photos_dir):
-                os.makedirs(photos_dir)
+            # Use app's external pictures dir - camera app can write here
+            pictures_dir = current_activity.getExternalFilesDir(
+                Environment.DIRECTORY_PICTURES
+            )
+            if not pictures_dir:
+                self.error_label.text = "Cannot access storage directory"
+                return
 
             # Create target file
             filename = f"grave_{self.grave_id}.jpg"
-            self.photo_path = os.path.join(photos_dir, filename)
-            photo_file = File(self.photo_path)
+            photo_file = File(pictures_dir, filename)
+            self.photo_path = photo_file.getAbsolutePath()
 
-            # Get content URI via FileProvider (required for API 24+)
-            # Authority matches what p4a generates: {package_name}.fileprovider
-            authority = f"{package_name}.fileprovider"
-            self._camera_uri = FileProvider.getUriForFile(
-                current_activity, authority, photo_file
-            )
+            # Create file:// URI (StrictMode bypass allows this on API 24+)
+            photo_uri = Uri.fromFile(photo_file)
 
             # Build camera intent
             intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, cast('android.os.Parcelable', self._camera_uri))
-            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            intent.putExtra(
+                MediaStore.EXTRA_OUTPUT,
+                cast('android.os.Parcelable', photo_uri)
+            )
 
-            # Bind result callback
+            # Bind result callback before launching
             android_activity.bind(on_activity_result=self._on_camera_result)
 
             # Launch camera (request code 1001)
             current_activity.startActivityForResult(intent, 1001)
-            print("Camera intent launched")
+            print(f"Camera launched, saving to: {self.photo_path}")
 
         except Exception as e:
             print(f"Error launching camera: {e}")
             import traceback
             traceback.print_exc()
-            # Show the full error, wrapping will handle display
             self.error_label.text = f"Camera error: {str(e)}"
 
     def _on_camera_result(self, request_code, result_code, intent):
