@@ -27,10 +27,10 @@ requirements = python3,kivy,plyer,mapview
 
 # (list) Permissions needed by the app
 # IMPORTANT: These allow GPS and internet access
-android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,CAMERA
+android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,READ_MEDIA_IMAGES,CAMERA
 
-# (int) Target Android API - Android 11 (API 30) for good privacy features and build stability
-android.api = 30
+# (int) Target Android API - Android 14 (API 34) for Play Store compliance
+android.api = 34
 
 # (int) Minimum API your app supports - Android 5.0 (API 21)
 android.minapi = 21
@@ -57,7 +57,7 @@ fullscreen = 0
 android.allow_backup = True
 
 # (int) Android SDK API to use - same as android.api for compatibility
-android.sdk = 30
+android.sdk = 34
 
 # (str) Path to the Android SDK (will use system SDK in CI)
 # android.sdk_path =

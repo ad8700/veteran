@@ -6,13 +6,14 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.image import Image
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivy.metrics import dp
 from kivy.clock import Clock
 from kivy.graphics import Color, RoundedRectangle, Rectangle
 import os
 
-# ── Color Palette (shared with main) ──
+# ── Color Palette ──
 COLORS = {
     'bg':          (0.11, 0.11, 0.16, 1),
     'surface':     (0.16, 0.17, 0.23, 1),
@@ -29,7 +30,7 @@ COLORS = {
 }
 
 
-def _flat_btn(text, bg_key='primary', height=dp(48), font_size='15sp', **kw):
+def _flat_btn(text, bg_key='primary', height=dp(52), font_size='17sp', **kw):
     return Button(
         text=text,
         size_hint_y=None,
@@ -43,7 +44,7 @@ def _flat_btn(text, bg_key='primary', height=dp(48), font_size='15sp', **kw):
     )
 
 
-def _styled_input(hint, multiline=False, height=dp(46), **kw):
+def _styled_input(hint, multiline=False, height=dp(52), **kw):
     return TextInput(
         hint_text=hint,
         multiline=multiline,
@@ -53,8 +54,8 @@ def _styled_input(hint, multiline=False, height=dp(46), **kw):
         foreground_color=COLORS['text'],
         hint_text_color=COLORS['text_dim'],
         cursor_color=COLORS['primary'],
-        padding=[dp(12), dp(10)],
-        font_size='15sp',
+        padding=[dp(14), dp(12)],
+        font_size='17sp',
         **kw,
     )
 
@@ -63,11 +64,27 @@ def _section_label(text):
     lbl = Label(
         text=text,
         size_hint_y=None,
-        height=dp(22),
-        font_size='12sp',
+        height=dp(28),
+        font_size='14sp',
         color=COLORS['text_dim'],
         halign='left',
         bold=True,
+    )
+    lbl.bind(size=lbl.setter('text_size'))
+    return lbl
+
+
+def _wrapping_label(text='', color=None, font_size='15sp', height=dp(40)):
+    """Create a label that word-wraps properly"""
+    lbl = Label(
+        text=text,
+        size_hint_y=None,
+        height=height,
+        font_size=font_size,
+        color=color or COLORS['text'],
+        halign='left',
+        valign='middle',
+        markup=True,
     )
     lbl.bind(size=lbl.setter('text_size'))
     return lbl
@@ -81,33 +98,39 @@ class VeteranInfoPopup(Popup):
         self.latitude = latitude
         self.longitude = longitude
         self.photo_path = None
+        self._camera_uri = None
 
         # Popup styling
         self.title = "Record Veteran Grave"
-        self.title_size = '18sp'
+        self.title_size = '20sp'
         self.title_color = COLORS['text']
         self.size_hint = (0.95, 0.95)
         self.separator_color = COLORS['accent']
         self.background_color = COLORS['bg']
 
         # Scrollable content
-        scroll_view = ScrollView(do_scroll_x=False)
+        scroll_view = ScrollView(
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_color=COLORS['accent'],
+            bar_width=dp(4),
+            scroll_type=['bars', 'content'],
+        )
 
         layout = BoxLayout(
             orientation='vertical',
-            padding=[dp(16), dp(12)],
-            spacing=dp(10),
+            padding=[dp(16), dp(14)],
+            spacing=dp(12),
             size_hint_y=None,
         )
         layout.bind(minimum_height=layout.setter('height'))
 
         # ── Location ──
-        coord_label = Label(
-            text=f"{latitude:.6f}, {longitude:.6f}",
-            size_hint_y=None,
-            height=dp(28),
-            font_size='13sp',
+        coord_label = _wrapping_label(
+            text=f"Location: {latitude:.6f}, {longitude:.6f}",
             color=COLORS['text_dim'],
+            font_size='14sp',
+            height=dp(30),
         )
         layout.add_widget(coord_label)
 
@@ -117,9 +140,9 @@ class VeteranInfoPopup(Popup):
         photo_card = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
-            height=dp(200),
+            height=dp(210),
             spacing=dp(8),
-            padding=[dp(10), dp(8)],
+            padding=[dp(12), dp(10)],
         )
         with photo_card.canvas.before:
             Color(*COLORS['card'])
@@ -135,36 +158,26 @@ class VeteranInfoPopup(Popup):
         self.photo_image = Image(
             source='',
             size_hint_y=None,
-            height=dp(120),
+            height=dp(130),
             allow_stretch=True,
             keep_ratio=True,
         )
-        self.photo_label = Label(
-            text="Tap the camera button to photograph the headstone",
-            size_hint_y=None,
-            height=dp(120),
+        self.photo_label = _wrapping_label(
+            text="Tap the camera button below to\nphotograph the headstone",
             color=COLORS['text_dim'],
-            font_size='13sp',
+            font_size='15sp',
+            height=dp(130),
         )
+        self.photo_label.halign = 'center'
         photo_card.add_widget(self.photo_label)
 
-        # Camera button row
-        cam_row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(10))
-
+        # Camera button - large and prominent
         self.take_photo_button = _flat_btn(
-            "[ Camera ]  Take Photo", bg_key='camera', height=dp(48), font_size='16sp'
+            "[ Camera ]  Take Photo", bg_key='camera', height=dp(52), font_size='18sp'
         )
         self.take_photo_button.bind(on_press=self.take_photo)
-        cam_row.add_widget(self.take_photo_button)
+        photo_card.add_widget(self.take_photo_button)
 
-        self.retake_photo_button = _flat_btn(
-            "Retake", bg_key='card', height=dp(48), font_size='14sp'
-        )
-        self.retake_photo_button.disabled = True
-        self.retake_photo_button.bind(on_press=self.take_photo)
-        cam_row.add_widget(self.retake_photo_button)
-
-        photo_card.add_widget(cam_row)
         layout.add_widget(photo_card)
 
         # ── Veteran Details ──
@@ -175,7 +188,7 @@ class VeteranInfoPopup(Popup):
 
         # Branch dropdown
         self.branch_button = _flat_btn(
-            "Select Branch of Service", bg_key='surface', height=dp(48), font_size='15sp'
+            "Select Branch of Service", bg_key='surface', height=dp(52), font_size='17sp'
         )
         self.branch_button.bind(on_release=self.show_branch_dropdown)
         layout.add_widget(self.branch_button)
@@ -188,11 +201,11 @@ class VeteranInfoPopup(Popup):
             btn = Button(
                 text=branch,
                 size_hint_y=None,
-                height=dp(50),
+                height=dp(52),
                 background_normal='',
                 background_color=COLORS['surface'],
                 color=COLORS['text'],
-                font_size='15sp',
+                font_size='17sp',
             )
             btn.bind(on_release=lambda b: self.select_branch(b.text))
             self.branch_dropdown.add_widget(btn)
@@ -200,7 +213,7 @@ class VeteranInfoPopup(Popup):
 
         # Cemetery dropdown
         self.cemetery_button = _flat_btn(
-            "Select Cemetery (Optional)", bg_key='surface', height=dp(48), font_size='15sp'
+            "Select Cemetery (Optional)", bg_key='surface', height=dp(52), font_size='17sp'
         )
         self.cemetery_button.bind(on_release=self.show_cemetery_dropdown)
         layout.add_widget(self.cemetery_button)
@@ -218,18 +231,18 @@ class VeteranInfoPopup(Popup):
             btn = Button(
                 text=cem,
                 size_hint_y=None,
-                height=dp(50),
+                height=dp(52),
                 background_normal='',
                 background_color=COLORS['surface'],
                 color=COLORS['text'],
-                font_size='15sp',
+                font_size='16sp',
             )
             btn.bind(on_release=lambda b: self.select_cemetery(b.text))
             self.cemetery_dropdown.add_widget(btn)
         self.selected_cemetery = None
 
         # Year inputs side by side
-        year_row = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(10))
+        year_row = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(10))
         self.birth_year_input = _styled_input("Birth Year", input_filter='int')
         self.death_year_input = _styled_input("Death Year *", input_filter='int')
         year_row.add_widget(self.birth_year_input)
@@ -241,32 +254,34 @@ class VeteranInfoPopup(Popup):
         self.notes_input = _styled_input(
             "Additional notes about the grave site...",
             multiline=True,
-            height=dp(90),
+            height=dp(100),
         )
         layout.add_widget(self.notes_input)
 
-        # Error label
-        self.error_label = Label(
+        # Error label - wrapping enabled
+        self.error_label = _wrapping_label(
             text="",
             color=COLORS['danger'],
-            size_hint_y=None,
-            height=dp(28),
-            font_size='13sp',
+            font_size='15sp',
+            height=dp(44),
         )
         layout.add_widget(self.error_label)
 
         # Action buttons
-        btn_row = BoxLayout(size_hint_y=None, height=dp(52), spacing=dp(12))
+        btn_row = BoxLayout(size_hint_y=None, height=dp(56), spacing=dp(12))
 
-        cancel_btn = _flat_btn("Cancel", bg_key='surface', height=dp(50))
+        cancel_btn = _flat_btn("Cancel", bg_key='surface', height=dp(54))
         cancel_btn.bind(on_press=self.dismiss)
         btn_row.add_widget(cancel_btn)
 
-        save_btn = _flat_btn("Save Record", bg_key='success', height=dp(50), font_size='16sp')
+        save_btn = _flat_btn("Save Record", bg_key='success', height=dp(54), font_size='18sp')
         save_btn.bind(on_press=self.submit_info)
         btn_row.add_widget(save_btn)
 
         layout.add_widget(btn_row)
+
+        # Bottom spacer so last button isn't flush with edge
+        layout.add_widget(Widget(size_hint_y=None, height=dp(20)))
 
         scroll_view.add_widget(layout)
         self.content = scroll_view
@@ -299,59 +314,105 @@ class VeteranInfoPopup(Popup):
             if not check_permission(Permission.CAMERA):
                 def on_permission_result(permissions, grants):
                     if grants and grants[0]:
-                        Clock.schedule_once(lambda dt: self._capture_photo(), 0.3)
+                        Clock.schedule_once(lambda dt: self._launch_camera(), 0.3)
                     else:
-                        self.error_label.text = "Camera permission denied"
+                        self.error_label.text = "Camera permission was denied"
 
                 request_permissions([Permission.CAMERA], on_permission_result)
                 return
 
-            self._capture_photo()
+            self._launch_camera()
         else:
-            self.error_label.text = "Camera only available on Android"
+            self.error_label.text = "Camera only available on Android device"
 
-    def _capture_photo(self):
-        """Capture photo using plyer camera"""
+    def _launch_camera(self):
+        """Launch camera using native Android intent with FileProvider (works on API 24+)"""
         try:
-            from plyer import camera
-            from kivy.app import App
+            from jnius import autoclass, cast
+            from android import activity as android_activity
 
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+            MediaStore = autoclass('android.provider.MediaStore')
+            Uri = autoclass('android.net.Uri')
+            File = autoclass('java.io.File')
+            FileProvider = autoclass('androidx.core.content.FileProvider')
+            Context = autoclass('android.content.Context')
+
+            current_activity = PythonActivity.mActivity
+            package_name = current_activity.getPackageName()
+
+            # Create photos directory in app's files dir (private, no extra permissions)
+            from kivy.app import App
             app = App.get_running_app()
             photos_dir = os.path.join(app.user_data_dir, 'photos')
             if not os.path.exists(photos_dir):
                 os.makedirs(photos_dir)
 
+            # Create target file
             filename = f"grave_{self.grave_id}.jpg"
             self.photo_path = os.path.join(photos_dir, filename)
+            photo_file = File(self.photo_path)
 
-            camera.take_picture(
-                filename=self.photo_path,
-                on_complete=self._on_photo_complete,
+            # Get content URI via FileProvider (required for API 24+)
+            # Authority matches what p4a generates: {package_name}.fileprovider
+            authority = f"{package_name}.fileprovider"
+            self._camera_uri = FileProvider.getUriForFile(
+                current_activity, authority, photo_file
             )
+
+            # Build camera intent
+            intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, cast('android.os.Parcelable', self._camera_uri))
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+
+            # Bind result callback
+            android_activity.bind(on_activity_result=self._on_camera_result)
+
+            # Launch camera (request code 1001)
+            current_activity.startActivityForResult(intent, 1001)
+            print("Camera intent launched")
+
         except Exception as e:
-            print(f"Error taking photo: {e}")
+            print(f"Error launching camera: {e}")
+            import traceback
+            traceback.print_exc()
+            # Show the full error, wrapping will handle display
             self.error_label.text = f"Camera error: {str(e)}"
 
-    def _on_photo_complete(self, filepath):
-        """Called when photo capture completes"""
-        def update_ui(dt):
-            if filepath and os.path.exists(filepath):
-                self.photo_path = filepath
+    def _on_camera_result(self, request_code, result_code, intent):
+        """Handle camera activity result"""
+        from android import activity as android_activity
 
-                # Swap placeholder label for actual image
+        # Unbind so we don't get called for other activity results
+        android_activity.unbind(on_activity_result=self._on_camera_result)
+
+        # result_code -1 = RESULT_OK, 0 = RESULT_CANCELED
+        if request_code == 1001 and result_code == -1:
+            Clock.schedule_once(lambda dt: self._on_photo_saved(), 0.3)
+        else:
+            Clock.schedule_once(
+                lambda dt: setattr(self.error_label, 'text', 'Photo capture was cancelled'),
+                0
+            )
+
+    def _on_photo_saved(self):
+        """Update UI after photo is saved"""
+        if self.photo_path and os.path.exists(self.photo_path):
+            # Swap placeholder for actual image
+            if self.photo_label.parent:
                 photo_section = self.photo_label.parent
-                if self.photo_label.parent:
-                    photo_section.remove_widget(self.photo_label)
-                    self.photo_image.source = filepath
-                    photo_section.add_widget(self.photo_image, index=1)
+                photo_section.remove_widget(self.photo_label)
+                self.photo_image.source = self.photo_path
+                self.photo_image.reload()
+                photo_section.add_widget(self.photo_image, index=1)
 
-                self.retake_photo_button.disabled = False
-                self.take_photo_button.text = "Photo Captured"
-                self.take_photo_button.background_color = COLORS['success']
-            else:
-                self.error_label.text = "Photo capture cancelled"
-
-        Clock.schedule_once(update_ui, 0)
+            self.take_photo_button.text = "Retake Photo"
+            self.take_photo_button.background_color = COLORS['success']
+            self.error_label.text = ""
+            print(f"Photo saved: {self.photo_path}")
+        else:
+            self.error_label.text = "Photo file not found after capture"
 
     # ── Save ──
 
@@ -410,12 +471,15 @@ class VeteranInfoPopup(Popup):
             print(f"Saved: {veteran_name}, {branch_of_service}, {death_year_int}")
             self.dismiss()
 
+            confirm_content = _wrapping_label(
+                text=f'{veteran_name}\n\nSaved locally.\nTap Sync to upload to cloud.',
+                font_size='16sp',
+                height=dp(80),
+            )
+            confirm_content.halign = 'center'
             confirm_popup = Popup(
                 title='Record Saved',
-                content=Label(
-                    text=f'{veteran_name}\n\nSaved locally. Tap Sync to upload.',
-                    halign='center',
-                ),
+                content=confirm_content,
                 size_hint=(0.85, 0.30),
                 auto_dismiss=True,
             )
