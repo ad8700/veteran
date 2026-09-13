@@ -69,8 +69,8 @@ android.sdk = 34
 # Required for MapView to load map tiles
 requirements.ssl = True
 
-# Python for Android recipe to use
-p4a.branch = master
+# Python for Android - pinned to stable release (master pulls CPython 3.14 which breaks pip)
+p4a.branch = v2024.01.21
 
 [buildozer]
 

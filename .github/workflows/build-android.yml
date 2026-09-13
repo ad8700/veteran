@@ -44,13 +44,13 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .buildozer_global
-        key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-global-v2-${{ hashFiles('buildozer.spec') }}
 
     - name: Cache Buildozer directory
       uses: actions/cache@v4
       with:
         path: .buildozer
-        key: buildozer-${{ hashFiles('buildozer.spec') }}
+        key: buildozer-v2-${{ hashFiles('buildozer.spec') }}
 
     # Step 6: Build the APK
     - name: Build with Buildozer
