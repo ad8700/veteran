@@ -357,10 +357,15 @@ class VeteranInfoPopup(Popup):
                 self.error_label.text = "Cannot access storage directory"
                 return
 
+            # Ensure directory exists (camera app won't create it)
+            if not pictures_dir.exists():
+                pictures_dir.mkdirs()
+
             # Create target file
             filename = f"grave_{self.grave_id}.jpg"
             photo_file = File(pictures_dir, filename)
             self.photo_path = photo_file.getAbsolutePath()
+            print(f"Photo target path: {self.photo_path}")
 
             # Create file:// URI (StrictMode bypass allows this on API 24+)
             photo_uri = Uri.fromFile(photo_file)
@@ -386,38 +391,63 @@ class VeteranInfoPopup(Popup):
             self.error_label.text = f"Camera error: {str(e)}"
 
     def _on_camera_result(self, request_code, result_code, intent):
-        """Handle camera activity result"""
+        """Handle camera activity result.
+        IMPORTANT: Don't trust result_code alone - many devices (Samsung etc.)
+        return RESULT_CANCELED (0) even when the photo was saved successfully.
+        Always check if the file exists.
+        """
         from android import activity as android_activity
-
-        # Unbind so we don't get called for other activity results
         android_activity.unbind(on_activity_result=self._on_camera_result)
 
-        # result_code -1 = RESULT_OK, 0 = RESULT_CANCELED
-        if request_code == 1001 and result_code == -1:
-            Clock.schedule_once(lambda dt: self._on_photo_saved(), 0.3)
+        print(f"Camera result: requestCode={request_code}, resultCode={result_code}")
+
+        if request_code == 1001:
+            # Give the camera app time to finish writing the file, then check
+            Clock.schedule_once(lambda dt: self._check_photo_result(result_code), 0.8)
+
+    def _check_photo_result(self, result_code):
+        """Check if photo was actually saved, regardless of result_code"""
+        file_exists = self.photo_path and os.path.exists(self.photo_path)
+        file_size = os.path.getsize(self.photo_path) if file_exists else 0
+
+        print(f"Photo check: path={self.photo_path}, exists={file_exists}, size={file_size}, result_code={result_code}")
+
+        if file_exists and file_size > 0:
+            # Photo saved successfully - update UI
+            self._on_photo_saved()
+        elif result_code == -1:
+            # Camera said OK but file is missing/empty - try a brief retry
+            Clock.schedule_once(lambda dt: self._retry_photo_check(), 1.5)
         else:
-            Clock.schedule_once(
-                lambda dt: setattr(self.error_label, 'text', 'Photo capture was cancelled'),
-                0
+            self.error_label.text = (
+                f"Photo not saved (code={result_code}). "
+                f"Try again - ensure you tap the checkmark/save button in the camera."
             )
 
-    def _on_photo_saved(self):
-        """Update UI after photo is saved"""
-        if self.photo_path and os.path.exists(self.photo_path):
-            # Swap placeholder for actual image
-            if self.photo_label.parent:
-                photo_section = self.photo_label.parent
-                photo_section.remove_widget(self.photo_label)
-                self.photo_image.source = self.photo_path
-                self.photo_image.reload()
-                photo_section.add_widget(self.photo_image, index=1)
+    def _retry_photo_check(self):
+        """One more check after additional delay (slow storage)"""
+        file_exists = self.photo_path and os.path.exists(self.photo_path)
+        file_size = os.path.getsize(self.photo_path) if file_exists else 0
 
-            self.take_photo_button.text = "Retake Photo"
-            self.take_photo_button.background_color = COLORS['success']
-            self.error_label.text = ""
-            print(f"Photo saved: {self.photo_path}")
+        if file_exists and file_size > 0:
+            self._on_photo_saved()
         else:
-            self.error_label.text = "Photo file not found after capture"
+            self.error_label.text = "Photo file not found. Please try again."
+
+    def _on_photo_saved(self):
+        """Update UI after photo is confirmed saved"""
+        # Swap placeholder for actual image
+        if self.photo_label.parent:
+            photo_section = self.photo_label.parent
+            photo_section.remove_widget(self.photo_label)
+            self.photo_image.source = self.photo_path
+            self.photo_image.reload()
+            photo_section.add_widget(self.photo_image, index=1)
+
+        self.take_photo_button.text = "Retake Photo"
+        self.take_photo_button.background_color = COLORS['success']
+        self.error_label.text = ""
+        print(f"Photo saved: {self.photo_path}")
 
     # ── Save ──
 
