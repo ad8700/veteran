@@ -326,9 +326,10 @@ class VeteranInfoPopup(Popup):
             self.error_label.text = "Camera only available on Android device"
 
     def _launch_camera(self):
-        """Launch camera using native Android intent.
-        Uses getExternalFilesDir + StrictMode bypass (standard Kivy/p4a approach).
-        FileProvider is NOT available in default p4a builds.
+        """Launch camera using MediaStore content URI.
+        This is the only approach that works reliably on Android 10+ with
+        scoped storage. file:// URIs and getExternalFilesDir don't work
+        because the camera app can't write to our app's private directory.
         """
         try:
             from jnius import autoclass, cast
@@ -337,52 +338,51 @@ class VeteranInfoPopup(Popup):
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             Intent = autoclass('android.content.Intent')
             MediaStore = autoclass('android.provider.MediaStore')
-            Uri = autoclass('android.net.Uri')
-            File = autoclass('java.io.File')
-            Environment = autoclass('android.os.Environment')
-
-            # Disable StrictMode file URI check (required for API 24+)
-            # This is the standard workaround for Kivy apps without FileProvider
-            StrictMode = autoclass('android.os.StrictMode')
-            VmPolicyBuilder = autoclass('android.os.StrictMode$VmPolicy$Builder')
-            StrictMode.setVmPolicy(VmPolicyBuilder().build())
+            ContentValues = autoclass('android.content.ContentValues')
 
             current_activity = PythonActivity.mActivity
+            resolver = current_activity.getContentResolver()
 
-            # Use app's external pictures dir - camera app can write here
-            pictures_dir = current_activity.getExternalFilesDir(
-                Environment.DIRECTORY_PICTURES
+            # Prepare local save path (we'll copy here after capture)
+            from kivy.app import App
+            app = App.get_running_app()
+            photos_dir = os.path.join(app.user_data_dir, 'photos')
+            if not os.path.exists(photos_dir):
+                os.makedirs(photos_dir)
+            self.photo_path = os.path.join(photos_dir, f"grave_{self.grave_id}.jpg")
+
+            # Create a MediaStore entry to get a content:// URI
+            # The camera app can ALWAYS write to content:// URIs
+            values = ContentValues()
+            values.put("_display_name", f"grave_{self.grave_id}.jpg")
+            values.put("mime_type", "image/jpeg")
+
+            MediaStoreImages = autoclass('android.provider.MediaStore$Images$Media')
+            self._camera_uri = resolver.insert(
+                MediaStoreImages.EXTERNAL_CONTENT_URI, values
             )
-            if not pictures_dir:
-                self.error_label.text = "Cannot access storage directory"
+
+            if not self._camera_uri:
+                self.error_label.text = "Could not create image entry"
                 return
 
-            # Ensure directory exists (camera app won't create it)
-            if not pictures_dir.exists():
-                pictures_dir.mkdirs()
+            print(f"Created MediaStore URI: {self._camera_uri.toString()}")
 
-            # Create target file
-            filename = f"grave_{self.grave_id}.jpg"
-            photo_file = File(pictures_dir, filename)
-            self.photo_path = photo_file.getAbsolutePath()
-            print(f"Photo target path: {self.photo_path}")
-
-            # Create file:// URI (StrictMode bypass allows this on API 24+)
-            photo_uri = Uri.fromFile(photo_file)
-
-            # Build camera intent
+            # Build camera intent with content:// URI
             intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             intent.putExtra(
                 MediaStore.EXTRA_OUTPUT,
-                cast('android.os.Parcelable', photo_uri)
+                cast('android.os.Parcelable', self._camera_uri)
             )
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-            # Bind result callback before launching
+            # Bind result callback
             android_activity.bind(on_activity_result=self._on_camera_result)
 
-            # Launch camera (request code 1001)
+            # Launch camera
             current_activity.startActivityForResult(intent, 1001)
-            print(f"Camera launched, saving to: {self.photo_path}")
+            print("Camera intent launched with MediaStore URI")
 
         except Exception as e:
             print(f"Error launching camera: {e}")
@@ -391,48 +391,73 @@ class VeteranInfoPopup(Popup):
             self.error_label.text = f"Camera error: {str(e)}"
 
     def _on_camera_result(self, request_code, result_code, intent):
-        """Handle camera activity result.
-        IMPORTANT: Don't trust result_code alone - many devices (Samsung etc.)
-        return RESULT_CANCELED (0) even when the photo was saved successfully.
-        Always check if the file exists.
-        """
+        """Handle camera activity result."""
         from android import activity as android_activity
         android_activity.unbind(on_activity_result=self._on_camera_result)
 
         print(f"Camera result: requestCode={request_code}, resultCode={result_code}")
 
         if request_code == 1001:
-            # Give the camera app time to finish writing the file, then check
-            Clock.schedule_once(lambda dt: self._check_photo_result(result_code), 0.8)
+            # Always try to read from the MediaStore URI regardless of result_code
+            # (some devices return 0 even on success)
+            Clock.schedule_once(lambda dt: self._copy_photo_from_mediastore(result_code), 0.5)
 
-    def _check_photo_result(self, result_code):
-        """Check if photo was actually saved, regardless of result_code"""
-        file_exists = self.photo_path and os.path.exists(self.photo_path)
-        file_size = os.path.getsize(self.photo_path) if file_exists else 0
+    def _copy_photo_from_mediastore(self, result_code):
+        """Copy captured photo from MediaStore content URI to local app storage.
+        Uses ParcelFileDescriptor.detachFd() to get a native file descriptor,
+        then Python os.fdopen() for fast I/O (no byte-by-byte JNI overhead).
+        """
+        try:
+            from jnius import autoclass
 
-        print(f"Photo check: path={self.photo_path}, exists={file_exists}, size={file_size}, result_code={result_code}")
+            if not self._camera_uri:
+                self.error_label.text = "No photo URI available"
+                return
 
-        if file_exists and file_size > 0:
-            # Photo saved successfully - update UI
-            self._on_photo_saved()
-        elif result_code == -1:
-            # Camera said OK but file is missing/empty - try a brief retry
-            Clock.schedule_once(lambda dt: self._retry_photo_check(), 1.5)
-        else:
-            self.error_label.text = (
-                f"Photo not saved (code={result_code}). "
-                f"Try again - ensure you tap the checkmark/save button in the camera."
-            )
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            current_activity = PythonActivity.mActivity
+            resolver = current_activity.getContentResolver()
 
-    def _retry_photo_check(self):
-        """One more check after additional delay (slow storage)"""
-        file_exists = self.photo_path and os.path.exists(self.photo_path)
-        file_size = os.path.getsize(self.photo_path) if file_exists else 0
+            # Open the content URI and get a native file descriptor
+            pfd = resolver.openFileDescriptor(self._camera_uri, "r")
+            if not pfd:
+                if result_code == 0:
+                    # Truly cancelled - clean up the empty MediaStore entry
+                    resolver.delete(self._camera_uri, None, None)
+                    self.error_label.text = "Photo capture was cancelled"
+                else:
+                    self.error_label.text = "Could not read captured photo"
+                return
 
-        if file_exists and file_size > 0:
-            self._on_photo_saved()
-        else:
-            self.error_label.text = "Photo file not found. Please try again."
+            # Get native fd and copy using Python (fast, no JNI per-byte overhead)
+            fd = pfd.detachFd()
+
+            import os as _os
+            with _os.fdopen(fd, 'rb') as src:
+                data = src.read()
+
+            if not data or len(data) == 0:
+                resolver.delete(self._camera_uri, None, None)
+                self.error_label.text = "Photo capture was cancelled"
+                return
+
+            # Write to local app storage
+            with open(self.photo_path, 'wb') as dst:
+                dst.write(data)
+
+            file_size = os.path.getsize(self.photo_path)
+            print(f"Photo copied: {len(data)} bytes -> {self.photo_path} ({file_size} bytes)")
+
+            if file_size > 0:
+                self._on_photo_saved()
+            else:
+                self.error_label.text = "Photo file is empty"
+
+        except Exception as e:
+            print(f"Error copying photo from MediaStore: {e}")
+            import traceback
+            traceback.print_exc()
+            self.error_label.text = f"Photo save error: {str(e)}"
 
     def _on_photo_saved(self):
         """Update UI after photo is confirmed saved"""
