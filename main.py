@@ -19,6 +19,7 @@ Window.softinput_mode = 'below_target'
 # Import our custom utilities
 from utils.MapHandler import MapHandler
 from utils.veteran_info import VeteranInfoPopup
+from utils.PinAdjust import PinAdjustPopup
 from utils.SyncManager import SyncManager
 from utils.LoginScreen import LoginScreen, UserStatusBar
 from utils.AuthManager import get_auth_manager
@@ -147,7 +148,7 @@ class VeteranGraveMarker(App):
             print("MapHandler not initialized")
             return None, None
 
-    def add_point(self, latitude, longitude):
+    def add_point(self, latitude, longitude, accuracy=None, gps_latitude=None, gps_longitude=None):
         db_path = self.get_db_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -156,9 +157,10 @@ class VeteranGraveMarker(App):
         user_id = auth_manager.get_user_id()
 
         cursor.execute("""
-            INSERT INTO Grave_Locations (latitude, longitude, timestamp, user_id)
-            VALUES (?, ?, CURRENT_TIMESTAMP, ?)
-        """, (latitude, longitude, user_id))
+            INSERT INTO Grave_Locations
+                (latitude, longitude, timestamp, user_id, accuracy, gps_latitude, gps_longitude)
+            VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
+        """, (latitude, longitude, user_id, accuracy, gps_latitude, gps_longitude))
         conn.commit()
 
         grave_id = cursor.lastrowid
@@ -188,6 +190,12 @@ class VeteranGraveMarker(App):
             sync_status STRING DEFAULT 'pending',
             last_synced TEXT
         )""")
+
+        # Original GPS reading, kept when the user moves the pin
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(Grave_Locations)")}
+        for col in ('gps_latitude', 'gps_longitude'):
+            if col not in existing:
+                conn.execute(f"ALTER TABLE Grave_Locations ADD COLUMN {col} REAL")
 
         conn.commit()
         conn.close()
@@ -361,11 +369,17 @@ class VeteranGraveMarker(App):
             popup.open()
             return
 
-        grave_id = self.add_point(latitude, longitude)
+        accuracy = getattr(self.map_handler, 'accuracy', None)
 
-        # Pin drop automatically opens the veteran info form
-        popup = VeteranInfoPopup(grave_id, self.get_db_path(), latitude, longitude)
-        popup.open()
+        # Let the user nudge the pin to correct for GPS lag/error, then open the form
+        def on_confirm(lat, lon):
+            grave_id = self.add_point(lat, lon, accuracy, latitude, longitude)
+            VeteranInfoPopup(grave_id, self.get_db_path(), lat, lon).open()
+
+        PinAdjustPopup(
+            latitude, longitude, accuracy, on_confirm,
+            make_button=lambda text, key: styled_button(text, key),
+        ).open()
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ Key improvements over original:
 - Automatic timeout and retry if GPS takes too long
 - Uses both GPS and NETWORK providers for better reliability
 """
+import time
 
 from kivy.utils import platform
 from kivy.clock import Clock
@@ -22,6 +23,9 @@ if platform == 'android':
     PythonActivity = autoclass('org.kivy.android.PythonActivity')
     Intent = autoclass('android.content.Intent')
     Settings = autoclass('android.provider.Settings')
+
+
+MAX_CACHED_FIX_AGE_MS = 60 * 1000
 
 
 class AndroidGPS:
@@ -195,9 +199,14 @@ class AndroidGPS:
             best_time = 0
 
             # Check all providers for last known location
+            now_ms = int(time.time() * 1000)
             for provider in [LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER]:
                 try:
                     loc = self.location_manager.getLastKnownLocation(provider)
+                    # Ignore stale cached fixes - they can be kilometres off
+                    if loc and now_ms - loc.getTime() > MAX_CACHED_FIX_AGE_MS:
+                        print(f"Ignoring stale {provider} fix ({(now_ms - loc.getTime()) // 1000}s old)")
+                        continue
                     if loc and loc.getTime() > best_time:
                         best_location = loc
                         best_time = loc.getTime()
@@ -260,7 +269,8 @@ class AndroidGPS:
                     altitude=location.getAltitude() if location.hasAltitude() else None,
                     speed=location.getSpeed() if location.hasSpeed() else None,
                     bearing=location.getBearing() if location.hasBearing() else None,
-                    provider=provider
+                    provider=provider,
+                    age_ms=max(0, int(time.time() * 1000) - location.getTime())
                 )
         except Exception as e:
             print(f"Error processing location: {e}")
