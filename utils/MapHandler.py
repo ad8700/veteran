@@ -1,3 +1,4 @@
+import time
 from kivy.utils import platform
 from kivy_garden.mapview import MapMarker
 from utils.AndroidGPS import AndroidGPS
@@ -11,6 +12,8 @@ class MapHandler:
         self.lon = None
         self.gps = None
         self.user_marker = None
+        self.accuracy = None
+        self._last_gps_fix_time = 0
 
     def request_location_permission(self):
         """Start GPS with permission request (event-driven callback, no delay)"""
@@ -49,10 +52,20 @@ class MapHandler:
 
     def on_location(self, **kwargs):
         """Called when GPS location is updated"""
-        self.lat = kwargs.get('lat')
-        self.lon = kwargs.get('lon')
         accuracy = kwargs.get('accuracy', 0)
         provider = kwargs.get('provider', 'unknown')
+        age_s = kwargs.get('age_ms', 0) / 1000.0
+        lat, lon = kwargs.get('lat'), kwargs.get('lon')
+
+        # Network (cell/wifi) fixes are coarse; don't let them override a
+        # recent satellite fix
+        now = time.time()
+        if provider == 'gps':
+            self._last_gps_fix_time = now
+        elif now - self._last_gps_fix_time < 30:
+            return
+        self.lat, self.lon, self.accuracy = lat, lon, accuracy
+        self.provider = provider
 
         if self.lat and self.lon:
             self.map_view.center_on(self.lat, self.lon)
@@ -65,7 +78,7 @@ class MapHandler:
                 self.map_view.add_marker(self.user_marker)
 
             if self.app:
-                self.app.update_gps_status(f"GPS: Ready  |  {accuracy:.0f}m")
+                self.app.update_gps_status(f"GPS: {provider}  |  {accuracy:.0f}m")
 
     def center_map_on_user_location(self):
         """Center map on current GPS location"""
